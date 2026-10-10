@@ -50,11 +50,11 @@ async def lifespan(app: FastAPI):
         await telegram_api('setMyCommands',{'commands':[{'command':'start','description':'Начать игру'},{'command':'profile','description':'Персонаж'},{'command':'daily','description':'Ежедневная награда'},{'command':'help','description':'Как играть'}]})
     yield
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.1.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.2.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.1.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.2.0'}
 
 @app.get('/')
 def home():return FileResponse(os.path.join(os.path.dirname(__file__),'static','index.html'))
