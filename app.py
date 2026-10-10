@@ -175,7 +175,7 @@ def ready(p):
     if p.cooldown and aware(p.cooldown)>now():raise ValueError('Персонаж восстанавливается после смерти')
 
 from raids import install_raids
-from gear import install_gear, create_gear, GearItem, BASE_GEAR
+from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats
 install_raids(app, with_player, ready)
 install_gear(app, with_player, ready)
 
@@ -646,6 +646,12 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
             else:
                 target=db.get(Player,m.defender_id if p.id==m.challenger_id else m.challenger_id)
                 damage=max(1,int(attack_power(db,p)*random.uniform(.55,1.0))) if body.action=='attack' else 0
+                if damage:
+                    armor=gear_stats(db,target.id)['defense']
+                    damage=max(1,damage-min(armor,int(damage*.65)))
+                    # A defensive stance protects against the immediately following hit.
+                    if m.log and m.log[-1]==f'{target.name}: защита — 0 урона':
+                        damage=max(1,int(damage*.65))
                 if p.id==m.challenger_id:
                     m.hp_b=max(0,m.hp_b-damage);dead=m.hp_b==0
                 else:

@@ -240,6 +240,9 @@ def install_raids(app, with_player, ready):
             else:
                 damage=max(1,round(config['damage']*(1+.55*r.stage)*random.uniform(.75,1.2)))
                 if body.action=='guard':damage=max(1,damage//4)
+                # Equipped armor contributes real damage reduction inside raids.
+                from gear import gear_stats
+                damage=max(1,damage-min(gear_stats(db,p.id)['defense'],int(damage*.65)))
                 fighter.hp=max(0,fighter.hp-damage)
                 if fighter.hp==0:raid_log(r,f'☠ {p.name} выбыл из боя!')
                 if not any(m.hp>0 for m in party):r.status='failed';raid_log(r,'Группа уничтожена. Экспедиция провалена.')
