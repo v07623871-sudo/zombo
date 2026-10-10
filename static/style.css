@@ -191,3 +191,26 @@
 .raid-member.out{opacity:.52}.raid-abilities{border-top:1px solid #685848;padding-top:13px}.raid-abilities h3{font:600 20px Oswald,sans-serif;color:#e9c995}
 .raid-chronicle{margin:16px 0;color:#bfc3b9;font-size:11px}.raid-chronicle summary{cursor:pointer;font-size:13px;color:#e4c391}.raid-chronicle>div{border-bottom:1px solid #3b423d;padding:8px 2px;line-height:1.5}
 @media(max-width:580px){.raid-scenario-grid{grid-template-columns:1fr}.raid-roster{grid-template-columns:1fr}.raid-scenario p{min-height:0}}
+
+/* ZOMBO v0.6 — unique rarity gear and upgraded equipment */
+.gear-hero{position:relative;overflow:hidden;padding:29px 22px 19px;background:radial-gradient(ellipse at 90% -10%,#6d573355,transparent 57%),linear-gradient(140deg,#1b2225,#11181d 75%);border:1px solid #6d623d77;border-radius:18px;margin:12px 0 22px}
+.gear-hero .eyebrow,.gear-item-title .gear-rarity{letter-spacing:.12em;font-size:10px;font-weight:800;color:var(--gold,#e7be72)}
+.gear-hero h1{font:900 clamp(31px,9vw,48px)/.99 Oswald,'Arial Narrow',sans-serif;letter-spacing:.035em;margin:11px 0 14px;color:#fff}
+.gear-hero h1 span{color:#e4bc76}
+.gear-hero p{font-size:13px;line-height:1.55;color:#aeb9bb;max-width:330px}
+.gear-hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:19px}
+.gear-hero-stats>div{background:#0a1017b8;border:1px solid #64707844;border-radius:10px;padding:11px 10px}
+.gear-hero-stats small{display:block;color:#8e9c9e;font-size:9px;letter-spacing:.08em}
+.gear-hero-stats b{display:block;color:#f6d394;font:700 23px Oswald,sans-serif;margin-top:4px}
+.gear-equipped-panel{display:grid;gap:8px;margin:10px 0 24px}
+.gear-slot{display:flex;align-items:center;gap:12px;border-radius:13px;border:1px solid #4350577c;background:#192126;padding:13px}
+.gear-slot-icon{display:grid;place-items:center;width:46px;height:48px;background:#273038;border:1px solid #52616a4f;border-radius:10px;font-size:27px;flex-shrink:0}
+.gear-slot>div{flex:1;min-width:0}.gear-slot small{display:block;color:#88969b;font-weight:700;font-size:10px;letter-spacing:.06em}.gear-slot strong{display:block;font-size:14px;line-height:1.4;color:#e9eced}.gear-slot div span{display:block;font-size:11px}.gear-slot>b{font:700 18px Oswald,sans-serif;color:#ecc783}
+.gear-collection{display:grid;gap:12px;margin-top:12px}
+.gear-card{border:1px solid color-mix(in srgb,var(--rarity) 35%,#364148);border-left:3px solid var(--rarity);border-radius:14px;background:linear-gradient(115deg,color-mix(in srgb,var(--rarity) 6%,#182126),#11171d);padding:14px}
+.gear-card.gear-equipped{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rarity) 32%,transparent)}
+.gear-item-top{display:flex;gap:13px;align-items:center}.gear-item-art{width:56px;height:60px;flex:none;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--rarity) 30%,#313943);background:color-mix(in srgb,var(--rarity) 12%,#1a2227);border-radius:12px;font-size:31px}
+.gear-item-title{min-width:0;flex:1}.gear-item-title .gear-rarity{color:var(--rarity)}.gear-item-title h3{margin:5px 0;color:#eef2f2;font-size:17px;line-height:1.15}.gear-item-title h3 span{font-size:13px;color:#e5c787}.gear-item-title p{margin:4px 0;color:#aebdb9;font-size:12px}
+.gear-rank-track{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin:15px 0 11px}.gear-rank-track span{height:5px;border-radius:4px;background:#343e42}.gear-rank-track span.done{background:var(--rarity)}
+.gear-cost{font-size:11px!important;color:#abb7b8;margin:7px 0 12px!important}.gear-actions{display:flex;flex-wrap:wrap;gap:7px}.gear-actions button{flex:1 1 98px;font-size:10px!important;min-height:34px}
+.gear-empty p,.gear-help p{font-size:12px;color:#aab6b8;line-height:1.7}.gear-empty button{margin-top:6px}

@@ -262,7 +262,15 @@ def install_raids(app, with_player, ready):
             give_item(db,p.id,'metal',1+r.stage)
             if r.scenario!='outpost':give_item(db,p.id,'rare',1)
             else:give_item(db,p.id,'food',2)
+            # Optional guaranteed high-tier loot for advanced cooperative clears.
+            from gear import roll_drop, gear_view
+            drop=None
+            if r.scenario!='outpost' or random.random()<.60:
+                min_rarity={'outpost':'uncommon','vault':'rare','citadel':'epic'}[r.scenario]
+                threat={'outpost':2,'vault':4,'citadel':5}[r.scenario]
+                try:drop=gear_view(roll_drop(db,p.id,threat,minimum=min_rarity))
+                except ValueError:pass  # Locker cap must not block currency/XP rewards.
             member.rewarded=True
-            return {'message':f'Награда: {xp} XP, {caps} крышек и редкие припасы!', 'xp':xp,'caps':caps}
+            return {'message':f'Награда: {xp} XP, {caps} крышек и редкие припасы!'+(' · '+drop['rarity_name']+' '+drop['name'] if drop else ''), 'xp':xp,'caps':caps,'gear_drop':drop}
 
     app.include_router(router)

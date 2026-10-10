@@ -74,11 +74,11 @@ def _war_clock_tick():
     with SessionLocal.begin() as session:
         refresh_world(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.5.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.6.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.5.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.6.0'}
 
 @app.get('/')
 def home():return FileResponse(os.path.join(os.path.dirname(__file__),'static','index.html'))
@@ -175,7 +175,9 @@ def ready(p):
     if p.cooldown and aware(p.cooldown)>now():raise ValueError('Персонаж восстанавливается после смерти')
 
 from raids import install_raids
+from gear import install_gear, create_gear, GearItem, BASE_GEAR
 install_raids(app, with_player, ready)
+install_gear(app, with_player, ready)
 
 @app.post('/api/stat')
 def upgrade_stat(body:Choice,request:Request,db:Session=Depends(db_session)):
@@ -245,6 +247,11 @@ def scavenge(request:Request,db:Session=Depends(db_session)):
         qty=random.randint(1,3)
         qty+=min(3,int(talent_bonus(p,'scavenge')*4))
         give_item(db,p.id,key,qty);progress(db,p.id,'scavenge')
+        # Searching sometimes yields unique equipment in addition to stackable materials.
+        if random.random()<.035:
+            from gear import roll_drop
+            try:roll_drop(db,p.id,loc['threat'])
+            except ValueError:pass
         p.hunger=min(100,p.hunger+2);p.thirst=min(100,p.thirst+3)
         if random.random()<.14:
             spawn_battle(db,p)
@@ -301,6 +308,9 @@ def equip(body:Choice,request:Request,db:Session=Depends(db_session)):
                 equipped.equipped=False
                 free=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.item_key==equipped.item_key,ItemStack.equipped==False))
                 if free:free.quantity+=equipped.quantity;db.delete(equipped)
+        # Old stackable items and individually rolled gear share one equip slot.
+        for new_gear in db.scalars(select(GearItem).where(GearItem.player_id==p.id,GearItem.equipped==True).with_for_update()).all():
+            if BASE_GEAR[new_gear.base_key]['slot']==item['type']:new_gear.equipped=False
         take_item(db,p.id,body.key)
         db.add(ItemStack(player_id=p.id,item_key=body.key,quantity=1,equipped=True))
         return {'message':f'Экипировано: {item["name"]}'}
@@ -314,7 +324,9 @@ def craft(body:Choice,request:Request,db:Session=Depends(db_session)):
         for k,q in recipe['cost'].items():
             if item_count(db,p.id,k)<q:raise ValueError('Не хватает: '+ITEMS[k]['name'])
         for k,q in recipe['cost'].items():take_item(db,p.id,k,q)
-        give_item(db,p.id,body.key,recipe['qty'])
+        if body.key in BASE_GEAR:
+            for _ in range(recipe['qty']):create_gear(db,p.id,body.key,'common','craft')
+        else:give_item(db,p.id,body.key,recipe['qty'])
         return {'message':'Создано: '+ITEMS[body.key]['name']}
 
 @app.post('/api/daily')
@@ -661,7 +673,9 @@ def shop_buy(body:Choice,request:Request,db:Session=Depends(db_session)):
         if body.key not in SHOP:raise ValueError('Нет такого товара')
         cost=SHOP[body.key]['caps']
         if p.caps<cost:raise ValueError('Недостаточно крышек')
-        p.caps-=cost;give_item(db,p.id,body.key)
+        p.caps-=cost
+        if body.key in BASE_GEAR:create_gear(db,p.id,body.key,'common','shop')
+        else:give_item(db,p.id,body.key)
         return {'message':f'Куплено: {ITEMS[body.key]["name"]}'}
 
 # Monetization: real Telegram Stars invoices, delivery only on authenticated successful_payment updates.

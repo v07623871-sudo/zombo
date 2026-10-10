@@ -272,6 +272,7 @@ def progress(db,pid,code,qty=1):
     q.amount+=qty
 
 def player_view(db,p):
+    from gear import gear_list,gear_stats
     tick(p)
     inv=db.scalars(select(ItemStack).where(ItemStack.player_id==p.id).order_by(ItemStack.equipped.desc(),ItemStack.item_key)).all()
     battle=db.scalar(select(Battle).where(Battle.player_id==p.id))
@@ -281,6 +282,7 @@ def player_view(db,p):
         'talent_bonuses':talent_bonuses(p),'talent_spent':len(p.skills or []),
         'talent_reset_cost':talent_reset_cost(p),
         'enemy_codex':(p.stats or {}).get('_enemy_codex',{}),
+        'gear':gear_list(db,p.id),'gear_stats':gear_stats(db,p.id),
         'hp':p.hp,'max_hp':max_hp(p),'stamina':p.stamina,'max_stamina':500,'hunger':p.hunger,'thirst':p.thirst,'caps':p.caps,
         'zombo':p.zombo,'location':p.location,'kills':p.kills,'rating':p.rating,'karma':p.karma,'clan_id':p.clan_id,'pvp_wins':p.pvp_wins,
         'last_daily':p.last_daily,'vip_until':aware(p.vip_until).isoformat() if p.vip_until else None,'xp_boost_until':aware(p.xp_boost_until).isoformat() if p.xp_boost_until else None,'loot_boost_until':aware(p.loot_boost_until).isoformat() if p.loot_boost_until else None,'battle':battle_view(battle),'inventory':[{'key':i.item_key,'qty':i.quantity,'equipped':i.equipped,**ITEMS[i.item_key]} for i in inv if i.item_key in ITEMS]}
@@ -302,6 +304,8 @@ def battle_view(b):
 def attack_power(db,p):
     weapon=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key.in_(['knife','pistol','rifle'])))
     w=ITEMS[weapon.item_key]['power'] if weapon else 3
+    from gear import gear_stats
+    w=gear_stats(db,p.id)['power'] or w
     cls=CLASSES.get(p.hero_class,CLASSES['soldier'])
     return max(1,int((7+p.level*2+p.stats.get('strength',0)*2+w)*cls['power']*(1+talent_bonus(p,'power'))))
 
@@ -389,12 +393,22 @@ def combat_round(db,p,b,action,zone='body'):
             pool=['wood','cloth','metal','food','water','medkit','wire']
             key=random.choice(pool);give_item(db,p.id,key);loot.append(key)
             progress(db,p.id,'scavenge')
+        # Individually rolled rarity/level gear enters a separate persistent collection.
+        from gear import roll_drop,gear_view
+        rare_drop=None
+        threat=LOCATIONS.get(p.location,{}).get('threat',1)
+        if random.random()<min(.20,.055+.023*threat):
+            try:
+                rare_drop=gear_view(roll_drop(db,p.id,threat))
+            except ValueError:pass  # A full gear locker must never cancel a won battle.
         progress(db,p.id,'kills')
         db.delete(b)
-        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps-territorial_tax} крышек'+(f' · Налог территории: {territorial_tax}' if territorial_tax else '')+(' · Новый уровень!' if xp_levels else '')+(' · Новый вид в бестиарии: +25 XP, +15 крышек' if first_discovery else ''),'loot':loot,'tax':territorial_tax,'new_species':first_discovery}
+        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps-territorial_tax} крышек'+(f' · Налог территории: {territorial_tax}' if territorial_tax else '')+(' · Новый уровень!' if xp_levels else '')+(' · Новый вид в бестиарии: +25 XP, +15 крышек' if first_discovery else '')+(' · Найдена экипировка: '+rare_drop['rarity_name']+' '+rare_drop['name'] if rare_drop else ''),'gear_drop':rare_drop,'loot':loot,'tax':territorial_tax,'new_species':first_discovery}
     enemy_key, enemy = enemy_info(b.kind)
     defense=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key=='vest'))
-    raw=max(1,b.enemy_damage+random.randint(-3,5)-(4 if defense else 0)-(8 if action=='defend' else 0))
+    from gear import gear_stats
+    extra_defense=gear_stats(db,p.id)['defense']
+    raw=max(1,b.enemy_damage+random.randint(-3,5)-(4 if defense else 0)-extra_defense-(8 if action=='defend' else 0))
     # Every third attack applies the enemy's distinctive attack pattern.
     special = (b.turn+1) % 3 == 0
     if special and enemy['trait'] in ('frenzy','acid','smash','howl','ambush'):
