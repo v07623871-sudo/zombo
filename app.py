@@ -11,7 +11,7 @@ from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import Session
 from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, Clan, Territory,
                     MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
-from game import (CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
+from game import (ENEMIES, CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
                   aware, max_hp, gain_xp, give_item, take_item, item_count, tick, spend_stamina,
                   player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync)
 
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
         result=await telegram_api('setWebhook',{'url':f'{PUBLIC_URL}/telegram/webhook','secret_token':SECRET,'allowed_updates':['message','pre_checkout_query']})
         logger.info('Webhook configured: %s',bool(result.get('ok')))
         await telegram_api('setChatMenuButton',{'menu_button':{'type':'web_app','text':'Открыть ZOMBO','web_app':{'url':PUBLIC_URL}}})
-        await telegram_api('setMyCommands',{'commands':[{'command':'start','description':'Начать игру'},{'command':'profile','description':'Персонаж'},{'command':'daily','description':'Ежедневная награда'},{'command':'help','description':'Как играть'}]})
+        await telegram_api('setMyCommands',{'commands':[{'command':'start','description':'Начать игру'},{'command':'profile','description':'Персонаж'},{'command':'daily','description':'Ежедневная награда'},{'command':'help','description':'Как играть'},{'command':'enemies','description':'Бестиарий'},{'command':'clan','description':'Клановые войны'},{'command':'map','description':'Где я?'},{'command':'skills','description':'Прокачка'},{'command':'bag','description':'Рюкзак'}]})
     loop = asyncio.create_task(_war_clock_loop())
     try:
         yield
@@ -74,11 +74,11 @@ def _war_clock_tick():
     with SessionLocal.begin() as session:
         refresh_world(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.3.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.4.1',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.3.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.4.1'}
 
 @app.get('/')
 def home():return FileResponse(os.path.join(os.path.dirname(__file__),'static','index.html'))
@@ -150,7 +150,7 @@ def with_player(request:Request, db: Session):
     return p
 
 @app.get('/api/config')
-def config():return {'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES,'war_timezone':WAR_TIMEZONE,'location_territories':LOCATION_TERRITORY}
+def config():return {'enemies':ENEMIES,'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES,'war_timezone':WAR_TIMEZONE,'location_territories':LOCATION_TERRITORY}
 
 @app.get('/api/me')
 def me(request:Request,db:Session=Depends(db_session)):
@@ -736,7 +736,7 @@ async def webhook(request:Request):
         except Exception:logger.exception('payment processing error')
         return {'ok':True}
     text=(msg.get('text') or '').split('@')[0].strip().split(' ')[0]
-    if text in ('/start','/help','/profile','/daily'):
+    if text in ('/start','/help','/profile','/daily','/enemies','/clan','/map','/skills','/bag'):
         if text=='/daily':
             with SessionLocal.begin() as db:
                 p=db.get(Player,int(user['id']))
@@ -746,11 +746,54 @@ async def webhook(request:Request):
                     p.last_daily=now().strftime('%Y-%m-%d');p.caps+=75;p.stamina=min(500,p.stamina+80)
                     give_item(db,p.id,'food');give_item(db,p.id,'water');gain_xp(p,45)
                     reply='🎁 +75 крышек, +80 энергии, еда, вода и +45 XP!'
+        elif text=='/enemies':
+            with SessionLocal() as db:
+                p=db.get(Player,int(user['id']))
+                codex=(p.stats or {}).get('_enemy_codex',{}) if p else {}
+                seen=len(codex);defeated=sum(1 for v in codex.values() if v.get('kills',0)>0)
+                rows=[f"{ENEMIES[k]['name']}: {v.get('kills',0)} побед" for k,v in codex.items() if k in ENEMIES]
+                reply=f'☣ БЕСТИАРИЙ ZOMBO\nОбнаружено: {seen}/10, побеждено: {defeated}/10\n'+('\n'.join(rows) if rows else 'Пока не встретился ни один вид.')+'\n\nЗа первый трофей вида: +25 XP и 15 крышек.'
+        elif text=='/clan':
+            with SessionLocal() as db:
+                p=db.get(Player,int(user['id']))
+                clan=db.get(Clan,p.clan_id) if p and p.clan_id else None
+                holdings=db.scalars(select(Territory).where(Territory.clan_id==clan.id)).all() if clan else []
+                title=f'Твой клан: {clan.name}\nКазна: {clan.treasury} крышек\nТерриторий: {len(holdings)}' if clan else 'У тебя пока нет клана. Создай или вступи в Mini App.'
+                reply='⚔ КЛАНОВЫЕ ВОЙНЫ\n'+title+f'\n\nПн / ср / пт — ставки\nВт / чт / сб — состав 10:00–15:00, война 16:00–16:30 ({WAR_TIMEZONE}).\nНалог с заражённых — 1%, сбор раз в 5 часов.'
+        elif text=='/map':
+            with SessionLocal() as db:
+                p=db.get(Player,int(user['id']))
+                if p:
+                    loc=LOCATIONS.get(p.location,LOCATIONS['base'])
+                    area=LOCATION_TERRITORY.get(p.location)
+                    owner='Зомби'
+                    if area:
+                        terr=db.get(Territory,area)
+                        if terr and terr.clan_id:
+                            clan=db.get(Clan,terr.clan_id)
+                            owner=clan.name if clan else 'Зомби'
+                    reply=f'⌖ ТВОЯ ПОЗИЦИЯ\n{loc["name"]} · опасность {loc["threat"]}/5\nКонтроль: {owner}\n\nОткрой карту, чтобы выбрать следующую зону.'
+                else: reply='Ты ещё не создал персонажа. Открой игру.'
+        elif text=='/skills':
+            with SessionLocal() as db:
+                p=db.get(Player,int(user['id']))
+                if p:
+                    branches=SKILL_TREES.get(p.hero_class,[])
+                    reply=f'✦ ПРОКАЧКА\n{CLASSES.get(p.hero_class,{}).get("name","Выживший")} · уровень {p.level}\nОчки талантов: {p.skill_points}\nОчки характеристик: {p.stat_points}\n\n'+(' / '.join(x['name'].title() for x in branches) if branches else 'Выбери класс в игре.')
+                else: reply='Сначала создай персонажа в игре.'
+        elif text=='/bag':
+            with SessionLocal() as db:
+                p=db.get(Player,int(user['id']))
+                if not p:reply='Сначала создай персонажа в игре.'
+                else:
+                    stacks=db.scalars(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.quantity>0).order_by(ItemStack.item_key).limit(12)).all()
+                    reply='▣ РЮКЗАК\n'+('\n'.join(f"{ITEMS[i.item_key]['name']}: {i.quantity}" for i in stacks if i.item_key in ITEMS) if stacks else 'Пусто')+'\n\nПолный инвентарь доступен в Mini App.'
         elif text=='/profile':
             with SessionLocal() as db:
                 p=db.get(Player,int(user['id']))
                 reply=f'🧟 {p.name}\nУровень {p.level} · {CLASSES.get(p.hero_class,{}).get("name","Новичок")}\n❤️ {p.hp}/{max_hp(p)} · ⚡ {p.stamina}/500\nКрышки: {p.caps}' if p else 'Открой игру, чтобы создать персонажа.'
-        else:reply='🧟 ZOMBO: After the Fall\nВыбирай класс, исследуй пустошь, сражайся с зомби и захватывай территории вместе с кланом.'
+        elif text=='/help':reply='📟 КОМАНДЫ ZOMBO\n/start — начать\n/profile — герой\n/skills — таланты\n/map — позиция\n/enemies — бестиарий\n/bag — рюкзак\n/clan — клан и КВ\n/daily — ежедневные припасы'
+        else:reply='🧟 ZOMBO: After the Fall\n1. Выбери класс и отправься в Мёртвый лес.\n2. Побеждай заражённых и открывай досье врагов.\n3. Прокачивай три ветки талантов.\n4. Вступи в клан и борись за территории!\n\nКоманды: /help'
         message={'chat_id':chat_id,'text':reply}
         if PUBLIC_URL:message['reply_markup']={'inline_keyboard':[[{'text':'🎮 Открыть ZOMBO','web_app':{'url':PUBLIC_URL}}]]}
         await telegram_api('sendMessage',message)

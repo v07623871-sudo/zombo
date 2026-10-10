@@ -87,6 +87,36 @@ for _klass, _branches in TALENT_PATHS.items():
             _previous = _key
         SKILL_TREES[_klass].append({'id':str(_index),'name':_title,'icon':_icon,'description':_desc,'nodes':_items})
 
+# In-game intelligence: tactical counterplay rather than purely cosmetic mob labels.
+ENEMY_TACTICS = {
+    'walker':'Слабый противник. Целься в голову, чтобы быстрее закончить бой.',
+    'crawler':'Скрытный противник. Перед выпадом выгоднее защищаться.',
+    'runner':'Каждая третья атака — рывок. Встречай его в защите.',
+    'howler':'Вопль крадёт энергию. Защитная стойка блокирует истощение.',
+    'spitter':'Кислота сжигает энергию. Перед плевком встань в защиту.',
+    'stalker':'Атакует из тени. Защита ослабляет его внезапный удар.',
+    'armored':'Костяная броня снижает урон. Удары в голову лучше пробивают защиту.',
+    'brute':'Сокрушительный удар очень опасен. Используй защиту на третьем ходу.',
+    'toxic':'Ядовитая вспышка отнимает силы. Блокируй её защитой.',
+    'reaper':'Элитный противник. Пережидай усиленные атаки в защите.',
+}
+
+def record_enemy(p, key, defeated=False):
+    """Persist an enemy sighting/kill in existing JSON stats, without a DB migration."""
+    if key not in ENEMIES:
+        return False
+    stats = dict(p.stats or {})
+    codex = dict(stats.get('_enemy_codex') or {})
+    entry = dict(codex.get(key) or {})
+    first = defeated and not entry.get('kills', 0)
+    entry['seen'] = max(1, int(entry.get('seen', 0)))
+    if defeated:
+        entry['kills'] = min(1000000, max(0, int(entry.get('kills', 0))) + 1)
+    codex[key] = entry
+    stats['_enemy_codex'] = codex
+    p.stats = stats
+    return first
+
 def talent_node(klass, key):
     return next((n for branch in SKILL_TREES.get(klass,[]) for n in branch['nodes'] if n['key']==key),None)
 
@@ -151,7 +181,32 @@ QUESTS = {
     'pvp':{'name':'Аренный боец','description':'Победить игрока в дуэли','target':1,'reward':{'caps':200,'xp':250}},
 }
 TERRITORIES = {'depot':'Склад снабжения','bridge':'Северный мост','tower':'Радиовышка','clinic':'Бункер медиков'}
-ZOMBIES = [('Шатающийся','Обглоданный'),('Бегун','Бродяга'),('Кислотный мутант','Падальщик'),('Бронированный заражённый','Осквернитель'),('Заражённый исполин','Вожак')]
+# Versioned enemy keys are stored inside the existing Battle.kind column (no database migration).
+# Traits change actual combat and are not merely cosmetic labels.
+ENEMIES = {
+    'walker': {'name':'Шатун','tier':1,'min_threat':1,'family':'Заражённый','trait':'none','skill':'Медленный удар','hp':.80,'damage':.8,'reward':.90,'armor':0,'color':'#91a59a','lore':'Первый сигнал заражения. Медленный, но неумолимый.'},
+    'crawler': {'name':'Ползун','tier':1,'min_threat':1,'family':'Заражённый','trait':'ambush','skill':'Выпад снизу','hp':.70,'damage':1.,'reward':1.,'armor':0,'color':'#ac9275','lore':'Передвигается бесшумно по земле и бросается на ноги.'},
+    'runner': {'name':'Бегун','tier':2,'min_threat':1,'family':'Быстрый','trait':'frenzy','skill':'Бешеный рывок','hp':.80,'damage':1.22,'reward':1.15,'armor':0,'color':'#ce9b78','lore':'Слышит шаги издалека. Опасен на короткой дистанции.'},
+    'howler': {'name':'Крикун','tier':2,'min_threat':2,'family':'Особый','trait':'howl','skill':'Заражённый вопль','hp':.95,'damage':1.07,'reward':1.25,'armor':0,'color':'#b2a0bd','lore':'Его визг пробирает до костей.'},
+    'spitter': {'name':'Плевун','tier':3,'min_threat':3,'family':'Мутант','trait':'acid','skill':'Кислотный плевок','hp':1.10,'damage':1.10,'reward':1.5,'armor':0,'color':'#99ba70','lore':'Выплёвывает едкую жидкость на расстоянии.'},
+    'stalker': {'name':'Следопыт','tier':3,'min_threat':3,'family':'Особый','trait':'ambush','skill':'Атака из тени','hp':1.05,'damage':1.2,'reward':1.55,'armor':0,'color':'#8597b1','lore':'Преследует жертву, пока та не теряет бдительность.'},
+    'armored': {'name':'Броненосец','tier':4,'min_threat':4,'family':'Тяжёлый','trait':'armor','skill':'Броневой удар','hp':1.40,'damage':.98,'reward':1.80,'armor':.25,'color':'#a9a69a','lore':'Костяные наросты служат почти непробиваемой бронёй.'},
+    'brute': {'name':'Громила','tier':4,'min_threat':4,'family':'Тяжёлый','trait':'smash','skill':'Сокрушительный удар','hp':1.65,'damage':1.30,'reward':1.95,'armor':.09,'color':'#b88d79','lore':'Гигантский мутант, способный проломить укрепления.'},
+    'toxic': {'name':'Токсик','tier':5,'min_threat':5,'family':'Мутант','trait':'acid','skill':'Ядовитая вспышка','hp':1.25,'damage':1.45,'reward':2.20,'armor':.10,'color':'#c7bb76','lore':'Плоть пропитана химикатами красной пустоши.'},
+    'reaper': {'name':'Жнец','tier':5,'min_threat':5,'family':'Элита','trait':'frenzy','skill':'Последняя охота','hp':1.80,'damage':1.60,'reward':2.80,'armor':.17,'color':'#d17e7d','lore':'Выжил там, где погибли даже мутанты.'},
+}
+
+def choose_enemy(threat, rng=None):
+    rng = rng or random
+    # Avoid fighting upper-tier enemies in early zones.
+    eligible = [(key, data) for key, data in ENEMIES.items() if data['min_threat'] <= threat and data['tier'] <= min(5, threat + 1)]
+    weights = [max(1, 6-abs(data['tier'] - threat)*2) for _, data in eligible]
+    return rng.choices([key for key, _ in eligible], weights=weights, k=1)[0]
+
+def enemy_info(kind):
+    key = kind.split(':',1)[1] if kind.startswith('zombie:') else 'walker'
+    return (key if key in ENEMIES else 'walker'), ENEMIES.get(key, ENEMIES['walker'])
+
 
 def aware(dt):
     if not dt: return None
@@ -225,6 +280,7 @@ def player_view(db,p):
         'talent_ranks':{n['key']:talent_rank(p,n['key']) for br in SKILL_TREES.get(p.hero_class,[]) for n in br['nodes']},
         'talent_bonuses':talent_bonuses(p),'talent_spent':len(p.skills or []),
         'talent_reset_cost':talent_reset_cost(p),
+        'enemy_codex':(p.stats or {}).get('_enemy_codex',{}),
         'hp':p.hp,'max_hp':max_hp(p),'stamina':p.stamina,'max_stamina':500,'hunger':p.hunger,'thirst':p.thirst,'caps':p.caps,
         'zombo':p.zombo,'location':p.location,'kills':p.kills,'rating':p.rating,'karma':p.karma,'clan_id':p.clan_id,'pvp_wins':p.pvp_wins,
         'last_daily':p.last_daily,'vip_until':aware(p.vip_until).isoformat() if p.vip_until else None,'xp_boost_until':aware(p.xp_boost_until).isoformat() if p.xp_boost_until else None,'loot_boost_until':aware(p.loot_boost_until).isoformat() if p.loot_boost_until else None,'battle':battle_view(battle),'inventory':[{'key':i.item_key,'qty':i.quantity,'equipped':i.equipped,**ITEMS[i.item_key]} for i in inv if i.item_key in ITEMS]}
@@ -238,8 +294,10 @@ def battle_view(b):
             try:
                 _,key,turn=v.split(':');used[key]=int(turn)
             except (ValueError,TypeError):pass
-    return {'id':b.id,'enemy':b.enemy,'hp':b.enemy_hp,'max_hp':b.enemy_max_hp,'turn':b.turn,
-            'log':public_log[-6:],'ability_cooldowns':{key:max(0,3-(b.turn-turn)) for key,turn in used.items()}}
+    key, enemy = enemy_info(b.kind)
+    return {'id':b.id,'enemy':b.enemy,'enemy_id':key,'enemy_type':enemy['family'],'trait':enemy['trait'],'skill':enemy['skill'],'tier':enemy['tier'],'lore':enemy['lore'],'hp':b.enemy_hp,'max_hp':b.enemy_max_hp,'turn':b.turn,
+            'log':public_log[-6:],'incoming_special':enemy['trait'] not in ('none','armor') and (b.turn+1)%3==0,
+            'tactics':ENEMY_TACTICS[key],'ability_cooldowns':{key:max(0,3-(b.turn-turn)) for key,turn in used.items()}}
 
 def attack_power(db,p):
     weapon=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key.in_(['knife','pistol','rifle'])))
@@ -300,6 +358,11 @@ def combat_round(db,p,b,action,zone='body'):
         crit=random.random()<min(.75,CLASSES[p.hero_class]['crit']+p.stats.get('agility',0)*.004+talent_bonus(p,'crit')+(0.13 if action=='skill' and p.hero_class=='assassin' else 0))
         if crit:d*=2
         if b.enemy_hp<=b.enemy_max_hp*.35:d=int(d*(1+talent_bonus(p,'execute')))
+        enemy_key, enemy = enemy_info(b.kind)
+        if enemy['armor'] and d:
+            # Headshots exploit gaps in bone plating; legs are easier to reach.
+            plating = enemy['armor'] * (.45 if zone=='head' else .75 if zone=='legs' else 1.0)
+            d=max(1,round(d*(1-plating)))
         b.enemy_hp=max(0,b.enemy_hp-d)
         if d and talent_bonus(p,'lifesteal'):
             leech=max(1,int(d*talent_bonus(p,'lifesteal')))
@@ -307,9 +370,14 @@ def combat_round(db,p,b,action,zone='body'):
         if action=='attack':msg+=f"Удар {dict(head='в голову',body='в тело',legs='по ногам')[zone]}"
         msg+=f": {d} урона"+(' · КРИТ!' if crit and d else '')
     if b.enemy_hp<=0:
+        enemy_key, enemy = enemy_info(b.kind)
         p.kills+=1
-        xp=int((35+b.enemy_max_hp*.3)*random.uniform(.85,1.15))
-        caps=int((random.randint(9,32)+b.enemy_damage)*(1+talent_bonus(p,'caps')))
+        first_discovery=record_enemy(p,enemy_key,defeated=True)
+        xp=int((35+b.enemy_max_hp*.3)*enemy['reward']*random.uniform(.85,1.15))
+        caps=int((random.randint(9,32)+b.enemy_damage)*enemy['reward']*(1+talent_bonus(p,'caps')))
+        if first_discovery:
+            xp+=25
+            caps+=15
         xp_levels=gain_xp(p,xp)
         # Territorial tribute comes from the zombie reward, not from thin air.
         from clan_wars import zombie_tax
@@ -323,14 +391,29 @@ def combat_round(db,p,b,action,zone='body'):
             progress(db,p.id,'scavenge')
         progress(db,p.id,'kills')
         db.delete(b)
-        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps-territorial_tax} крышек'+(f' · Налог территории: {territorial_tax}' if territorial_tax else '')+(' · Новый уровень!' if xp_levels else ''),'loot':loot,'tax':territorial_tax}
+        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps-territorial_tax} крышек'+(f' · Налог территории: {territorial_tax}' if territorial_tax else '')+(' · Новый уровень!' if xp_levels else '')+(' · Новый вид в бестиарии: +25 XP, +15 крышек' if first_discovery else ''),'loot':loot,'tax':territorial_tax,'new_species':first_discovery}
+    enemy_key, enemy = enemy_info(b.kind)
     defense=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key=='vest'))
     raw=max(1,b.enemy_damage+random.randint(-3,5)-(4 if defense else 0)-(8 if action=='defend' else 0))
+    # Every third attack applies the enemy's distinctive attack pattern.
+    special = (b.turn+1) % 3 == 0
+    if special and enemy['trait'] in ('frenzy','acid','smash','howl','ambush'):
+        raw=max(1,round(raw*{'frenzy':1.45,'acid':1.28,'smash':1.60,'howl':1.20,'ambush':1.36}[enemy['trait']]))
+        # Defending in the telegraphed turn halves the special's raw damage.
+        if action=='defend':raw=max(1,raw//2)
     evade_chance=min(.7,talent_bonus(p,'dodge')+extra_dodge)
     evaded=random.random()<evade_chance
     received=0 if evaded else max(1,round(raw*(1-min(.70,talent_bonus(p,'mitigation')+talent_bonus(p,'armor')))))
     p.hp=max(0,p.hp-received)
+    drained=0
+    if special and not evaded and action!='defend' and enemy['trait'] in ('acid','howl'):
+        drained=min(p.stamina,6 if enemy['trait']=='acid' else 4)
+        p.stamina-=drained
     b.turn+=1
+    if special and enemy['trait'] not in ('none','armor'):
+        msg+=' · '+enemy['skill']+'!'
+        if action=='defend':msg+=' · Успешный блок'
+        if drained:msg+=f' · −{drained} энергии'
     b.log=[*(b.log or [])[-20:],msg,('↝ Уклонение! Урон не получен' if evaded else f'{b.enemy} наносит {received} урона')]
     if p.hp==0:
         p.hp=max(1,max_hp(p)//2)
@@ -350,10 +433,13 @@ def spawn_battle(db,p):
     if p.hp < 1:raise ValueError('Нужно восстановить здоровье')
     spend_stamina(p,2)
     threat=LOCATIONS[p.location]['threat']
-    enemy=random.choice(ZOMBIES[max(0,threat-2):min(5,threat+1)])
-    hp=30+threat*18+random.randint(0,20)
-    b=Battle(player_id=p.id, enemy=random.choice(enemy),enemy_hp=hp,enemy_max_hp=hp,enemy_damage=3+threat*3,log=['Вдалеке слышен хрип...'])
+    key=choose_enemy(threat)
+    enemy=ENEMIES[key]
+    hp=max(15,int((30+threat*18+random.randint(0,20))*enemy['hp']))
+    damage=max(2,int((3+threat*3)*enemy['damage']))
+    b=Battle(player_id=p.id,kind='zombie:'+key,enemy=enemy['name'],enemy_hp=hp,enemy_max_hp=hp,enemy_damage=damage,log=['Вдалеке слышен хрип...'])
     db.add(b);db.flush()
+    record_enemy(p,key)
     return battle_view(b)
 
 def boss_sync(db):

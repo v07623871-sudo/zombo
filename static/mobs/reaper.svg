@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="400" viewBox="0 0 320 400" role="img" aria-label="Жнец">
+<defs><linearGradient id="skin" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d17e7d"/><stop offset=".6" stop-color="#677874"/><stop offset="1" stop-color="#343c41"/></linearGradient><linearGradient id="cloth" x1=".1" y1="0" x2=".9" y2="1"><stop stop-color="#4c5352"/><stop offset="1" stop-color="#1b262d"/></linearGradient></defs>
+<ellipse cx="158" cy="386" rx="117" ry="10" fill="#000" opacity=".25"/>
+<path d="M97 190Q123 160 207 186L250 224 291 352 251 374 204 290 218 396 119 394 121 279 82 355 36 359 63 237Z" fill="url(#cloth)" stroke="#82908b" stroke-width="4" stroke-linejoin="round"/>
+<path d="M129 177l-11 36 77 1-9-35" fill="url(#skin)" stroke="#30383a" stroke-width="4"/>
+<path d="M113 65Q152 32 201 70L222 131 194 181 135 187 101 128Z" fill="url(#skin)" stroke="#3b4748" stroke-width="5"/>
+<path d="M117 124q14-8 29 2m31-2q13-8 29 3" fill="none" stroke="#2b302f" stroke-width="8" stroke-linecap="round"/>
+<ellipse cx="134" cy="132" rx="5" ry="9" fill="#f1c17a"/><ellipse cx="188" cy="132" rx="5" ry="9" fill="#f1c17a"/>
+<path d="M155 141l-7 18 19 2" fill="none" stroke="#424846" stroke-width="5"/><path d="M145 169q22 11 38-1" fill="none" stroke="#3b302f" stroke-width="5"/>
+<path d="M126 133l21 9m23-45 10 7" fill="none" stroke="#8a514c" stroke-width="5" stroke-linecap="round"/>
+<path d="M115 245l75 7M113 273l95-4" fill="none" stroke="#8c8076" opacity=".34" stroke-width="5"/>
+<path d="M72 113Q147-35 243 112L207 81 117 85Z" fill="#323037" stroke="#b39b9c" stroke-width="5"/><path d="M258 178l55 9-61 21-40 146" fill="none" stroke="#c1b8af" stroke-width="12" stroke-linecap="round"/>
+</svg>

@@ -116,3 +116,54 @@
 .war-current{border:1px solid #8a6741;padding:13px;border-radius:8px;margin-top:10px;background:#2d241f}
 .war-chronicle{margin-top:12px;font-size:12px;color:#c0c4c2}.war-chronicle div{border-bottom:1px solid #30383a;padding:5px 0}
 @media(max-width:390px){.war-schedule{grid-template-columns:1fr}.war-armies{grid-template-columns:1fr}}
+
+/* ZOMBO 0.4 · compact tactical UI, clean vector icons, enemy dossiers */
+.ui-icon{width:17px;height:17px;display:inline-block;vertical-align:-3px;flex-shrink:0;stroke:currentColor}
+.top .ui-icon{width:15px;height:15px;vertical-align:-3px;color:#e5b971}.bottom-nav button .nav-ico .ui-icon{width:22px;height:22px;stroke-width:1.7px}
+.territory-map{background:linear-gradient(155deg,#20262a,#10161b);border:1px solid #5b5345;border-radius:15px;overflow:hidden;margin:9px 0 12px;box-shadow:0 9px 30px #0004}
+.territory-map-head{padding:10px 13px 7px;display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:10px;letter-spacing:.65px;font-weight:800;color:#e5bc7c}
+.territory-map-head small{color:#91a4a8;font-size:9px;font-weight:500;letter-spacing:0}
+.territory-map-stage{position:relative;aspect-ratio:360/235;overflow:hidden;background:#141b20}
+.territory-map-stage>svg{display:block;width:100%;height:100%;pointer-events:none}
+.territory-pin{position:absolute;transform:translate(-50%,-50%);background:#141a20e7;border:1px solid #85969d95;color:#e5e3d8;border-radius:7px;padding:5px 6px;display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1.25;gap:3px;max-width:32%;width:max-content;box-shadow:0 3px 10px #0009;min-height:34px;transition:border-color .2s,background .2s}
+.territory-pin>span{font-size:9px;font-weight:600;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.territory-pin>b{font-size:10px;color:#cad0cf;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.territory-pin.captured>b{color:#e8ad86}.territory-pin.mine>b{color:#9be0b4}.territory-pin.active{border-color:#efc181;background:#28241ce8;box-shadow:0 0 0 1px #dab07588,0 5px 16px #000b}
+.territory-legend{padding:9px 12px;display:flex;gap:14px;flex-wrap:wrap;background:#12181c;border-top:1px solid #313e41;font-size:9px;color:#97a9a9}
+.territory-legend span{display:flex;align-items:center;gap:5px}.territory-legend i{width:8px;height:8px;display:inline-block;border-radius:50%;background:#869399}.territory-legend i.mine{background:#59bd84}.territory-legend i.captured{background:#d48b6e}
+.map-selected{padding:13px 15px;border:1px solid #455048;border-radius:12px;background:#1b2328;margin-bottom:13px}
+.map-selected h3{font:600 20px Oswald,Arial,sans-serif;margin:6px 0}.map-selected p{font-size:11px;color:#a5b1b1;margin:6px 0 12px}.map-selected .btn{width:100%}
+.map-location-list{display:flex;flex-direction:column;gap:8px}
+.location-card.compact{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:10px}
+.map-location-body{display:flex;align-items:center;gap:10px;min-width:0;flex:1}.location-card.compact .location-icon{position:static;font:unset;width:35px;height:35px;flex:0 0 35px;display:grid;place-items:center;background:#32403e60;border:1px solid #45514c;border-radius:9px;color:#c8a76f}.location-card.compact .location-icon svg{width:19px;height:19px}
+.location-card.compact h3{font-size:16px;line-height:1.2}.location-card.compact .tag{font-size:8px}.location-card.compact p{max-width:100%;line-height:1.4;margin:3px 0 0;font-size:9px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.location-card.compact .btn{width:auto;min-width:66px;flex:0 0 auto;font-size:9px;padding:9px 8px}
+.map-bestiary-link{display:flex;align-items:center;gap:8px;background:#20292c;border:1px dashed #53645c;border-radius:11px;padding:10px;margin:14px 0;font-size:10px;color:#bbc9c0}.map-bestiary-link .btn{margin-left:auto;flex-shrink:0}
+.bestiary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:10px 0 20px}
+.bestiary-card{min-width:0;padding:0 11px 13px;background:linear-gradient(155deg,#232e30,#141b20);border:1px solid #3d4949;border-radius:13px;overflow:hidden}
+.bestiary-portrait{height:143px;background:radial-gradient(ellipse at 50% 75%,#cbaa5937,transparent 70%);display:grid;place-items:center}
+.mob-portrait{display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 9px 8px #0009)}
+.bestiary-rank{font-size:8px;font-weight:800;color:#d7b57d;letter-spacing:1px;line-height:1.4}.bestiary-card h3{font:600 19px Oswald,sans-serif;margin:5px 0}.bestiary-card p{color:#9cabaa;font-size:9px;line-height:1.5;margin:0 0 10px;min-height:42px}.bestiary-ability{display:flex;gap:5px;align-items:center;color:#e7c18b;font-size:10px;border-top:1px solid #3c4849;padding-top:9px}.bestiary-ability .ui-icon{width:14px;height:14px}
+.mob-combat{padding:13px 13px 15px}.combat-tag{display:flex;justify-content:center;align-items:center;gap:6px;color:#e7be81;font-size:10px;font-weight:800;letter-spacing:1px}
+.mob-combat .monster{height:200px;display:grid;place-items:center;margin-top:-5px}.mob-combat .mob-portrait{max-height:205px;max-width:220px}
+.mob-combat h2{font-size:26px;margin:0}.mob-description{font-size:10px;color:#bac2ba;margin:5px auto;line-height:1.5;max-width:300px}
+.mob-combat-trait{font-size:9px;color:#dfc08d;letter-spacing:.4px;text-transform:uppercase;font-weight:800;margin:9px 0 2px}
+.battle-hp{max-width:260px;margin:2px auto 4px}.fight-actions-panel{padding:12px 13px}.fight-actions-panel .section-label{margin:13px 0 8px}.fight-actions-panel .actions{margin-top:8px}
+/* The map and clan roster share visual rhythm on very narrow Telegram WebView windows. */
+.war-banner{padding:13px;margin-bottom:10px}.war-banner h2{font-size:24px;margin:6px 0 9px}.war-schedule{gap:5px;margin:8px 0}.war-schedule span{padding:8px 3px;font-size:9px}.war-schedule b{font-size:9px}.war-banner .smallnote{padding:3px 0;margin:2px 0}
+.war-territory{padding:13px}.war-territory h3{font-size:22px;margin:7px 0 4px}.war-taxes{margin:8px 0;gap:7px}.war-taxes span{padding:8px}.war-taxes small{font-size:9px}.war-event{padding-top:10px;margin-top:10px}
+@media(max-width:390px){.war-schedule{grid-template-columns:repeat(3,minmax(0,1fr))}.war-armies{grid-template-columns:repeat(2,minmax(0,1fr))}.territory-pin{padding:4px 3px}.territory-pin>span{font-size:8px}.territory-pin>b{font-size:9px}}
+
+/* Version 0.4.1: focus panels, codex progress and tactical enemy counterplay */
+.next-objective{display:flex;align-items:center;gap:11px;background:linear-gradient(110deg,#2c302c,#182327);border:1px solid #816944;border-radius:12px;padding:12px;margin:10px 0 13px}
+.next-objective-icon{width:35px;height:35px;min-width:35px;border-radius:9px;background:#e5b96c20;border:1px solid #d6ae6b58;display:grid;place-items:center;color:#eac38a}.next-objective-icon svg{width:21px;height:21px}
+.next-objective>div:nth-child(2){min-width:0;flex:1}.next-objective small{font-size:9px;letter-spacing:1px;color:#cfae79;font-weight:850}.next-objective h3{font:600 17px Oswald,Arial;margin:2px 0;color:#f6e6c5}.next-objective p{font-size:10px;line-height:1.45;color:#a8b6af;margin:0}.next-objective .btn{flex:0 0 auto;font-size:9px;padding:9px}
+.codex-summary{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:14px;background:linear-gradient(110deg,#253133,#1b2227);border:1px solid #51645e;border-radius:12px;margin:10px 0 13px}
+.codex-summary h3{font:600 22px Oswald,sans-serif;margin:4px 0}.codex-summary p{font-size:10px;line-height:1.5;color:#afbbb6;margin:0}.codex-summary>svg{min-width:30px;width:30px;height:30px;color:#dcb777}
+.bestiary-card.undiscovered .mob-portrait{filter:grayscale(1) brightness(.22);opacity:.8}.bestiary-card.undiscovered{border-color:#30383b}.bestiary-card.seen{border-color:#69634d}
+.bestiary-counter{font-size:9px;color:#c4ad7e;border-top:1px solid #3d4745;margin-top:10px;padding-top:9px;line-height:1.4}.bestiary-ability.muted{opacity:.6}
+.battle-tactic{background:#233036;border:1px solid #435c62;padding:11px;border-radius:9px;display:flex;align-items:start;gap:8px;color:#bfcfd0;font-size:11px;line-height:1.5;margin:9px 0}
+.battle-tactic svg{color:#d9b77d;margin-top:1px}.battle-warning{display:flex;gap:8px;align-items:center;padding:10px;border-radius:9px;color:#f4c89b;background:#552c20;border:1px solid #b36637;font-size:11px;font-weight:900;margin:10px 0;animation:warnpulse 2s ease-in-out infinite}
+.battle-warning svg{flex:0 0 17px}@keyframes warnpulse{50%{border-color:#edbd76;background:#5b3827}}
+.more-menu .symbol svg{width:22px;height:22px}
+@media(max-width:410px){.next-objective{flex-wrap:wrap}.next-objective .btn{margin-left:46px}.bestiary-portrait{height:130px}.bestiary-card{padding:0 9px 12px}}
