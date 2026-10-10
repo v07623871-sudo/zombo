@@ -11,15 +11,15 @@ from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import Session
 from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, Clan, Territory,
                     MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment)
-from game import (CLASSES, SKILLS, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
+from game import (CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
                   aware, max_hp, gain_xp, give_item, take_item, item_count, tick, spend_stamina,
                   player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync)
 
 logging.basicConfig(level=logging.INFO)
-logger=logging.getLogger('zombo')
-# Prevent httpx from writing secret Telegram bot tokens embedded in request URLs.
+# HTTPX INFO logs include Telegram token in the request URL.
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('httpcore').setLevel(logging.WARNING)
+logger=logging.getLogger('zombo')
 BOT_TOKEN=os.getenv('BOT_TOKEN','')
 PUBLIC_URL=os.getenv('PUBLIC_URL','').rstrip('/')
 SECRET=os.getenv('TELEGRAM_WEBHOOK_SECRET','')
@@ -121,11 +121,12 @@ def with_player(request:Request, db: Session):
         db.add(p);db.flush()
         for key,qty in [('knife',1),('medkit',2),('food',2),('water',2),('wood',3)]:give_item(db,p.id,key,qty)
     if p.banned or p.frozen:raise HTTPException(403,'Персонаж заблокирован')
+    migrate_talents(p)
     tick(p)
     return p
 
 @app.get('/api/config')
-def config():return {'classes':CLASSES,'skills':SKILLS,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES}
+def config():return {'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES}
 
 @app.get('/api/me')
 def me(request:Request,db:Session=Depends(db_session)):
@@ -142,7 +143,7 @@ def choose_class(body:Choice,request:Request,db:Session=Depends(db_session)):
         p=with_player(request,db)
         if p.hero_class:raise ValueError('Класс выбирается один раз')
         if body.key not in CLASSES:raise ValueError('Неизвестный класс')
-        p.hero_class=body.key;p.hp=max_hp(p)
+        p.hero_class=body.key;migrate_talents(p);p.hp=max_hp(p)
         return {'message':f'Твой класс — {CLASSES[body.key]["name"]}','me':player_view(db,p)}
 
 def ready(p):
@@ -163,14 +164,34 @@ def upgrade_stat(body:Choice,request:Request,db:Session=Depends(db_session)):
 def upgrade_skill(body:Choice,request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db);ready(p)
-        tree=[x[0] for x in SKILLS[p.hero_class]]
-        if body.key not in tree:raise ValueError('Это умение не твоего класса')
-        if p.skill_points<1:raise ValueError('Нет очков навыков')
-        idx=tree.index(body.key)
-        if body.key in p.skills:raise ValueError('Уже открыто')
-        if idx and tree[idx-1] not in p.skills:raise ValueError('Сначала изучи предыдущий навык')
-        p.skills=[*p.skills,body.key];p.skill_points-=1
-        return {'message':'Навык изучен'}
+        node=talent_node(p.hero_class,body.key)
+        if not node:raise ValueError('Это умение не твоего класса')
+        if p.skill_points<1:raise ValueError('Нет очков талантов')
+        rank=talent_rank(p,body.key)
+        if rank>=node['max_rank']:raise ValueError('Навык полностью изучен')
+        if p.level<node['min_level']:raise ValueError(f'Требуется уровень {node["min_level"]}')
+        if node['requires'] and talent_rank(p,node['requires'])<node['required_rank']:
+            required=talent_node(p.hero_class,node['requires'])
+            raise ValueError(f'Сначала прокачай «{required["name"]}» до ранга {node["required_rank"]}')
+        p.skills=[*(p.skills or []),body.key];p.skill_points-=1
+        if node['effect']=='health':p.hp=min(max_hp(p),p.hp+int(node['per_rank']))
+        return {'message':f'✦ {node["name"]}: ранг {rank+1}/{node["max_rank"]}','rank':rank+1}
+
+@app.post('/api/skill/reset')
+def reset_skills(request:Request,db:Session=Depends(db_session)):
+    with db.begin():
+        p=with_player(request,db);ready(p)
+        if not p.skills:raise ValueError('Ты ещё не вкладывала очки в навыки')
+        if db.scalar(select(Battle).where(Battle.player_id==p.id)):
+            raise ValueError('Не меняй специализацию во время боя')
+        cost=talent_reset_cost(p)
+        if p.caps<cost:raise ValueError(f'Для сброса нужно {cost} крышек')
+        p.caps-=cost
+        refund=len(p.skills or [])
+        p.skill_points+=refund;p.skills=[]
+        p.stats={**p.stats,'_talent_resets':int(p.stats.get('_talent_resets',0))+1}
+        p.hp=min(p.hp,max_hp(p))
+        return {'message':f'Таланты сброшены. Возвращено {refund} очков.'}
 
 @app.post('/api/travel')
 def travel(body:Choice,request:Request,db:Session=Depends(db_session)):
@@ -195,6 +216,7 @@ def scavenge(request:Request,db:Session=Depends(db_session)):
         loc=LOCATIONS[p.location]
         key=random.choice([loc['material'],loc['material'],'cloth','food','water','wood','metal'])
         qty=random.randint(1,3)
+        qty+=min(3,int(talent_bonus(p,'scavenge')*4))
         give_item(db,p.id,key,qty);progress(db,p.id,'scavenge')
         p.hunger=min(100,p.hunger+2);p.thirst=min(100,p.thirst+3)
         if random.random()<.14:
@@ -233,7 +255,7 @@ def use_item(body:ItemAction,request:Request,db:Session=Depends(db_session)):
         if body.key not in ['food','water','medkit']:raise ValueError('Нельзя использовать предмет')
         if body.qty!=1:raise ValueError('Используй по одному')
         take_item(db,p.id,body.key)
-        if body.key=='medkit':p.hp=min(max_hp(p),p.hp+int(45*CLASSES[p.hero_class]['healing']))
+        if body.key=='medkit':p.hp=min(max_hp(p),p.hp+int(45*CLASSES[p.hero_class]['healing']*(1+talent_bonus(p,'healing'))))
         if body.key=='food':p.hunger=max(0,p.hunger-40)
         if body.key=='water':p.thirst=max(0,p.thirst-45)
         return {'message':f'Использовано: {ITEMS[body.key]["name"]}'}
@@ -319,7 +341,7 @@ def boss_hit(request:Request,db:Session=Depends(db_session)):
         if b.hp<=0:raise ValueError('Босс уже повержен. Жди нового цикла')
         entry=db.scalar(select(BossHit).where(BossHit.player_id==p.id,BossHit.spawn_at==str(int(aware(b.spawn_at).timestamp()))).with_for_update())
         if entry and (now()-aware(entry.last_hit)).total_seconds()<30:raise ValueError('Повторная атака через 30 секунд')
-        damage=max(1,attack_power(db,p)*random.randint(3,5))
+        damage=max(1,int(attack_power(db,p)*random.randint(3,5)*(1+talent_bonus(p,'boss'))))
         damage=min(damage,b.hp)
         b.hp-=damage
         if entry:entry.damage+=damage;entry.last_hit=now()

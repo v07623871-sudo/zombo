@@ -15,6 +15,103 @@ SKILLS = {
     'assassin': [('precision','Точность','Больше попаданий'),('rage','Ярость','Больше урон'),('bleeding','Кровожадность','Добивающий удар'),('vamp','Вампиризм','Лечение от ударов'),('speed','Скорость','Уклонение'),('master','Мастер клинка','Особое мастерство')],
     'thief': [('dodge','Уклонение','Меньше урона'),('loot','Добыча','Больше находок'),('gold','Золото','Больше крышек'),('steal','Кража','Небольшой шанс добычи'),('silent','Тихий шаг','Экономия энергии'),('master','Мастер тени','Особое мастерство')]
 }
+# Three interconnected talent paths for every survivor class. Existing learned IDs
+# remain valid; duplicate IDs in the JSON list represent talent ranks (1..3).
+# Each node defines a mechanically meaningful passive or an active combat skill.
+TALENT_PATHS = {
+ 'medic': [
+  ('ПОЛЕВАЯ МЕДИЦИНА','✚','Верни отряд с того света',[
+   ('healer','Экстренная помощь','✚','Аптечки восстанавливают больше HP','healing',.18),
+   ('antidote','Антидот','⌁','Сопротивление атакам заражённых','mitigation',.035),
+   ('master','Второе дыхание','✹','Активный навык: восстановление HP во время боя','ability',1)]),
+  ('ВЫЖИВАНИЕ','⛨','Проживи ещё один день',[
+   ('regeneration','Регенерация','♥','Быстрее восстановление HP со временем','regen',2),
+   ('energy','Стимулятор','ϟ','Восстановление энергии и экономия сил','energy',.12),
+   ('guard','Защитный протокол','⬟','Меньше урона и крепче здоровье','armor',.035)]),
+  ('САНИТАРНАЯ ЗАЧИСТКА','☣','Бей заражённых по слабым местам',[
+   ('sterilize','Стерильный выстрел','⊕','Больше наносимого урона','power',.06),
+   ('hematology','Анатомия','◉','Выше шанс критического удара','crit',.035),
+   ('clean_sweep','Очистка зоны','⚔','Сильнее удары по мировому боссу','boss',.09)])],
+ 'soldier': [
+  ('ОГНЕВАЯ МОЩЬ','⚔','Ни шагу назад',[
+   ('aim','Меткая очередь','◎','Бонус к обычному урону','power',.065),
+   ('double','Двойной выстрел','✹','Активный навык: залп повышенного урона','ability',1),
+   ('sniper','Снайпер','⊕','Выше шанс критического удара','crit',.045)]),
+  ('БАСТИОН','⛨','Стой даже когда все пали',[
+   ('steadfast','Стойкость','⬟','Меньше получаемого урона','mitigation',.045),
+   ('guard_post','Броня выжившего','♥','Дополнительный запас здоровья','health',10),
+   ('master','Несокрушимый','♜','Ещё меньше получаемого урона','armor',.045)]),
+  ('ТАКТИКА','⌖','Каждая пуля должна попасть',[
+   ('care','Выдержка','ϟ','Быстрее восстанавливается энергия','energy',.12),
+   ('suppression','Подавление','◉','Точнее удары по уязвимым зонам','accuracy',.03),
+   ('commander','Командир','✧','Больше опыта за победы','xp',.06)])],
+ 'assassin': [
+  ('КРОВАВЫЙ СЛЕД','⚔','Каждый удар может стать последним',[
+   ('precision','Смертельная точность','◉','Выше шанс критического удара','crit',.045),
+   ('bleeding','Добивающий удар','☠','Усиленный урон по раненой цели','execute',.12),
+   ('master','Шквал клинков','✹','Активный навык: жестокий удар с критическим шансом','ability',1)]),
+  ('ЯРОСТЬ','☣','Обрати боль в силу',[
+   ('rage','Ярость','✦','Усиление всех атак','power',.075),
+   ('vamp','Жажда крови','♥','Похищение здоровья при атаке','lifesteal',.035),
+   ('bloodmoon','Кровавая луна','⚔','Выше урон мировому боссу','boss',.12)]),
+  ('ТЕНЬ','◈','Враг не видит твоей руки',[
+   ('speed','Скорость','↝','Шанс увернуться от вражеского удара','dodge',.045),
+   ('veil','Покров ночи','⬟','Уменьшает получаемый урон','mitigation',.03),
+   ('phantom','Призрак','ϟ','Экономит энергию в бою','energy',.12)])],
+ 'thief': [
+  ('ПУТЬ ТЕНИ','◈','Будь там, где тебя не ждут',[
+   ('dodge','Ловкий шаг','↝','Чаще уклоняешься от врагов','dodge',.05),
+   ('silent','Без шума','ϟ','Восстанавливай энергию быстрее','energy',.15),
+   ('master','Дымовая завеса','✹','Активный навык: удар из тени и уклонение','ability',1)]),
+  ('ДОБЫЧА','⬡','Пустошь принадлежит находчивым',[
+   ('loot','Мародёр','▣','Выше шанс добычи после победы','loot',.09),
+   ('gold','Золотые руки','🪙','Больше крышек за победу','caps',.10),
+   ('steal','Карманник','◇','Больше ресурсов при поиске припасов','scavenge',.25)]),
+  ('НАЛЁТ','⚔','Бей первым и исчезай',[
+   ('ambush','Удар из засады','⚔','Повышает наносимый урон','power',.06),
+   ('backstab','Удар в спину','◉','Шанс критического удара','crit',.04),
+   ('escape_artist','Неуловимый','⬟','Меньше урона от врага','mitigation',.04)])]
+}
+
+SKILL_TREES = {}
+for _klass, _branches in TALENT_PATHS.items():
+    SKILL_TREES[_klass] = []
+    for _index, (_title, _icon, _desc, _nodes) in enumerate(_branches):
+        _previous = None
+        _items = []
+        for _tier, (_key, _name, _node_icon, _hint, _effect, _rate) in enumerate(_nodes):
+            _items.append({'key':_key,'name':_name,'icon':_node_icon,'description':_hint,'effect':_effect,
+                           'per_rank':_rate,'tier':_tier+1,'max_rank':3,'min_level':(1,5,12)[_tier],
+                           'requires':_previous,'required_rank':(0,1,2)[_tier],
+                           'kind':'active' if _effect=='ability' else 'passive'})
+            _previous = _key
+        SKILL_TREES[_klass].append({'id':str(_index),'name':_title,'icon':_icon,'description':_desc,'nodes':_items})
+
+def talent_node(klass, key):
+    return next((n for branch in SKILL_TREES.get(klass,[]) for n in branch['nodes'] if n['key']==key),None)
+
+def talent_rank(p,key):
+    return min(3,(p.skills or []).count(key))
+
+def talent_bonus(p,effect):
+    return sum(n['per_rank']*talent_rank(p,n['key']) for path in SKILL_TREES.get(p.hero_class,[]) for n in path['nodes'] if n['effect']==effect)
+
+def talent_bonuses(p):
+    return {metric:round(talent_bonus(p,metric),3) for metric in ('power','crit','mitigation','armor','health','healing','regen','energy','boss','accuracy','xp','loot','caps','scavenge','execute','lifesteal','dodge')}
+
+def talent_reset_cost(p):
+    # First reset is complimentary so the player can learn the system.
+    if not p.stats.get('_talent_resets',0):return 0
+    return 100+25*len(p.skills or [])
+
+def migrate_talents(p):
+    # No database migration needed: remember conversion in existing JSON stats field.
+    if not p.hero_class or p.stats.get('_talent_v2'):return
+    old_grants=p.level//5
+    new_grants=2+p.level//2+p.level//5
+    p.skill_points+=(new_grants-old_grants)
+    p.stats={**p.stats,'_talent_v2':1}
+
 STATS = {'strength':'Сила','agility':'Ловкость','endurance':'Выносливость','accuracy':'Точность','regen':'Регенерация','luck':'Удача'}
 ITEMS = {
     'knife': {'name':'Ржавый нож','icon':'🗡️','type':'weapon','power':7,'desc':'Оружие ближнего боя'},
@@ -61,32 +158,36 @@ def aware(dt):
     from datetime import timezone
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
-def max_hp(p): return CLASSES.get(p.hero_class,{}).get('hp',100) + p.stats.get('endurance',0)*5 + (p.level-1)*3
+def max_hp(p): return CLASSES.get(p.hero_class,{}).get('hp',100) + p.stats.get('endurance',0)*5 + (p.level-1)*3 + int(talent_bonus(p,'health'))
 
 def xp_needed(level): return int(150*level**1.75+300*level)
 
 def spend_stamina(p, cost):
     tick(p)
-    if p.stamina < cost: raise ValueError(f'Не хватает выносливости. Нужно {cost} ⚡')
-    p.stamina -= cost
+    actual=max(1,round(cost*(1-min(.55,talent_bonus(p,'energy')*.45))))
+    if p.stamina < actual: raise ValueError(f'Не хватает выносливости. Нужно {actual} ⚡')
+    p.stamina -= actual
 
 def tick(p):
     current=now()
     elapsed=max(0,(current-aware(p.last_tick or current)).total_seconds())
     regen=int(elapsed//300)*(4 if p.vip_until and aware(p.vip_until)>current else 2)
+    regen=int(regen*(1+talent_bonus(p,'energy')))
     if regen>0:
         p.stamina=min(500,p.stamina+regen)
-        p.hp=min(max_hp(p),p.hp+int(elapsed//3600)*(1+p.stats.get('regen',0)))
+        p.hp=min(max_hp(p),p.hp+int(elapsed//3600)*(1+p.stats.get('regen',0)+int(talent_bonus(p,'regen'))))
         p.last_tick=current
 
 def gain_xp(p, amount):
     if p.vip_until and aware(p.vip_until)>now():amount=int(amount*1.2)
     if p.xp_boost_until and aware(p.xp_boost_until)>now():amount*=2
+    amount=int(amount*(1+talent_bonus(p,'xp')))
     p.xp+=amount
     leveled=0
     while p.xp>=xp_needed(p.level) and leveled<100:
         p.xp-=xp_needed(p.level)
         p.level+=1;p.stat_points+=1
+        if p.level%2==0:p.skill_points+=1
         if p.level%5==0:p.skill_points+=1
         p.hp=max_hp(p)
         leveled+=1
@@ -121,49 +222,99 @@ def player_view(db,p):
     battle=db.scalar(select(Battle).where(Battle.player_id==p.id))
     return {'id':p.id,'name':p.name,'username':p.username,'class':p.hero_class,'level':p.level,'xp':p.xp,'xp_next':xp_needed(p.level),
         'stats':p.stats,'skills':p.skills,'stat_points':p.stat_points,'skill_points':p.skill_points,
+        'talent_ranks':{n['key']:talent_rank(p,n['key']) for br in SKILL_TREES.get(p.hero_class,[]) for n in br['nodes']},
+        'talent_bonuses':talent_bonuses(p),'talent_spent':len(p.skills or []),
+        'talent_reset_cost':talent_reset_cost(p),
         'hp':p.hp,'max_hp':max_hp(p),'stamina':p.stamina,'max_stamina':500,'hunger':p.hunger,'thirst':p.thirst,'caps':p.caps,
         'zombo':p.zombo,'location':p.location,'kills':p.kills,'rating':p.rating,'karma':p.karma,'clan_id':p.clan_id,'pvp_wins':p.pvp_wins,
         'last_daily':p.last_daily,'vip_until':aware(p.vip_until).isoformat() if p.vip_until else None,'xp_boost_until':aware(p.xp_boost_until).isoformat() if p.xp_boost_until else None,'loot_boost_until':aware(p.loot_boost_until).isoformat() if p.loot_boost_until else None,'battle':battle_view(battle),'inventory':[{'key':i.item_key,'qty':i.quantity,'equipped':i.equipped,**ITEMS[i.item_key]} for i in inv if i.item_key in ITEMS]}
 
 def battle_view(b):
     if not b:return None
-    return {'id':b.id,'enemy':b.enemy,'hp':b.enemy_hp,'max_hp':b.enemy_max_hp,'turn':b.turn,'log':b.log[-5:]}
+    public_log=[v for v in (b.log or []) if not v.startswith('!ability:')]
+    used={}
+    for v in (b.log or []):
+        if v.startswith('!ability:'):
+            try:
+                _,key,turn=v.split(':');used[key]=int(turn)
+            except (ValueError,TypeError):pass
+    return {'id':b.id,'enemy':b.enemy,'hp':b.enemy_hp,'max_hp':b.enemy_max_hp,'turn':b.turn,
+            'log':public_log[-6:],'ability_cooldowns':{key:max(0,3-(b.turn-turn)) for key,turn in used.items()}}
 
 def attack_power(db,p):
     weapon=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key.in_(['knife','pistol','rifle'])))
     w=ITEMS[weapon.item_key]['power'] if weapon else 3
     cls=CLASSES.get(p.hero_class,CLASSES['soldier'])
-    return int((7+p.level*2+p.stats.get('strength',0)*2+w)*cls['power']*(1+.08*len(p.skills)))
+    return max(1,int((7+p.level*2+p.stats.get('strength',0)*2+w)*cls['power']*(1+talent_bonus(p,'power'))))
 
 def combat_round(db,p,b,action,zone='body'):
-    if action not in ['attack','medkit','flee','defend']: raise ValueError('Неизвестное действие')
+    if action not in ('attack','medkit','flee','defend','skill'):raise ValueError('Неизвестное действие')
     if action=='flee':
         db.delete(b)
         return {'finished':True,'won':False,'fled':True,'message':'Удалось ускользнуть от заражённого'}
+    extra_dodge=0
     if action=='medkit':
         take_item(db,p.id,'medkit')
-        heal=int(45*CLASSES[p.hero_class]['healing'])
+        heal=int(45*CLASSES[p.hero_class]['healing']*(1+talent_bonus(p,'healing')))
         p.hp=min(max_hp(p),p.hp+heal)
         msg=f'Использована аптечка: +{heal} HP'
     elif action=='defend':msg='Защитная стойка: урон противника уменьшен'
     else:
-        if zone not in ('head','body','legs'):raise ValueError('Неверная зона')
-        spend_stamina(p,2)
-        d=max(1,int(attack_power(db,p)*{'head':1.5,'body':1.0,'legs':0.7}[zone]*random.uniform(.8,1.2)))
-        chance={'head':.68,'body':.94,'legs':.99}[zone] +p.stats.get('accuracy',0)*.005
-        if random.random()>min(.99,chance):d=0
-        crit=random.random()<min(.6,CLASSES[p.hero_class]['crit']+p.stats.get('agility',0)*.004)
+        if action=='skill':
+            node=talent_node(p.hero_class,zone)
+            if not node or node['kind']!='active' or not talent_rank(p,zone):raise ValueError('Активный навык не изучен')
+            for entry in b.log or []:
+                if entry.startswith(f'!ability:{zone}:'):
+                    try:old_turn=int(entry.rsplit(':',1)[-1])
+                    except ValueError:continue
+                    if b.turn-old_turn<3:raise ValueError(f'Навык восстанавливается: {3-(b.turn-old_turn)} ход.')
+            spend_stamina(p,6)
+            b.log=[*(b.log or []),'!ability:'+zone+':'+str(b.turn)]
+            rank=talent_rank(p,zone)
+        else:
+            if zone not in ('head','body','legs'):raise ValueError('Неверная зона')
+            spend_stamina(p,2)
+            rank=0
+        accuracy={'head':.68,'body':.94,'legs':.99}.get(zone,.96)+p.stats.get('accuracy',0)*.005+talent_bonus(p,'accuracy')
+        damage_multiplier={'head':1.5,'body':1.0,'legs':.7}.get(zone,1.0)
+        if action=='skill':
+            if p.hero_class=='medic':
+                heal=int((36+rank*18)*(1+talent_bonus(p,'healing')))
+                p.hp=min(max_hp(p),p.hp+heal)
+                damage_multiplier=.65
+                extra_dodge=.08
+                msg=f'✚ Второе дыхание: +{heal} HP. '
+            elif p.hero_class=='soldier':
+                damage_multiplier=1.65+rank*.3
+                msg='⚔ Двойной выстрел! '
+            elif p.hero_class=='assassin':
+                damage_multiplier=1.75+rank*.30
+                msg='☠ Шквал клинков! '
+            else:
+                damage_multiplier=1.0+rank*.25
+                extra_dodge=.5+rank*.08
+                msg='◈ Дымовая завеса! '
+        else:msg=''
+        d=max(1,int(attack_power(db,p)*damage_multiplier*random.uniform(.8,1.2)))
+        if random.random()>min(.99,accuracy):d=0
+        crit=random.random()<min(.75,CLASSES[p.hero_class]['crit']+p.stats.get('agility',0)*.004+talent_bonus(p,'crit')+(0.13 if action=='skill' and p.hero_class=='assassin' else 0))
         if crit:d*=2
+        if b.enemy_hp<=b.enemy_max_hp*.35:d=int(d*(1+talent_bonus(p,'execute')))
         b.enemy_hp=max(0,b.enemy_hp-d)
-        msg=f"{('КРИТ! ' if crit and d else '')}Удар {dict(head='в голову',body='в тело',legs='по ногам')[zone]}: {d} урона"
+        if d and talent_bonus(p,'lifesteal'):
+            leech=max(1,int(d*talent_bonus(p,'lifesteal')))
+            p.hp=min(max_hp(p),p.hp+leech)
+        if action=='attack':msg+=f"Удар {dict(head='в голову',body='в тело',legs='по ногам')[zone]}"
+        msg+=f": {d} урона"+(' · КРИТ!' if crit and d else '')
     if b.enemy_hp<=0:
         p.kills+=1
-        xp=int((35+b.enemy_max_hp*.3)*random.uniform(.85,1.15));caps=random.randint(9,32)+b.enemy_damage
+        xp=int((35+b.enemy_max_hp*.3)*random.uniform(.85,1.15))
+        caps=int((random.randint(9,32)+b.enemy_damage)*(1+talent_bonus(p,'caps')))
         xp_levels=gain_xp(p,xp)
         p.caps+=caps
         loot=[]
         loot_bonus=2 if p.loot_boost_until and aware(p.loot_boost_until)>now() else 1
-        if random.random()<min(.95,.44*CLASSES[p.hero_class]['loot']*loot_bonus):
+        if random.random()<min(.98,.44*CLASSES[p.hero_class]['loot']*loot_bonus+talent_bonus(p,'loot')):
             pool=['wood','cloth','metal','food','water','medkit','wire']
             key=random.choice(pool);give_item(db,p.id,key);loot.append(key)
             progress(db,p.id,'scavenge')
@@ -171,9 +322,13 @@ def combat_round(db,p,b,action,zone='body'):
         db.delete(b)
         return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps} крышек'+(' · Новый уровень!' if xp_levels else ''),'loot':loot}
     defense=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key=='vest'))
-    received=max(1,b.enemy_damage+random.randint(-3,5)- (4 if defense else 0)- (8 if action=='defend' else 0))
+    raw=max(1,b.enemy_damage+random.randint(-3,5)-(4 if defense else 0)-(8 if action=='defend' else 0))
+    evade_chance=min(.7,talent_bonus(p,'dodge')+extra_dodge)
+    evaded=random.random()<evade_chance
+    received=0 if evaded else max(1,round(raw*(1-min(.70,talent_bonus(p,'mitigation')+talent_bonus(p,'armor')))))
     p.hp=max(0,p.hp-received)
-    b.turn+=1;b.log=[*(b.log or [])[-5:],msg,f'{b.enemy} наносит {received} урона']
+    b.turn+=1
+    b.log=[*(b.log or [])[-20:],msg,('↝ Уклонение! Урон не получен' if evaded else f'{b.enemy} наносит {received} урона')]
     if p.hp==0:
         p.hp=max(1,max_hp(p)//2)
         loss=min(p.caps,int(p.caps*.2))

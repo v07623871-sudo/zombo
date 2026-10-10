@@ -14,3 +14,79 @@
 @media(max-width:375px){.app-shell{padding-left:10px;padding-right:10px}.currency{font-size:10px;padding:6px}.hero-text{max-width:70%}.hero h1{font-size:26px}.class-option .art{height:120px}.class-option .art svg{height:175px}.stat-chip strong{font-size:16px}}
 
 .monster svg{display:block;width:180px;height:205px;margin:0 auto;}
+
+/* ZOMBO 0.2: Talent laboratory / three class progression branches */
+.gold-text {color:#eac17e}
+.talent-promo {display:flex;align-items:center;justify-content:space-between;gap:18px;margin:12px 0 26px;padding:19px 19px 17px;border:1px solid #85643883;border-radius:15px;background:radial-gradient(ellipse at 100% 0%,#c69e4625,transparent 70%),linear-gradient(120deg,#22251f,#141a1e);box-shadow:inset 0 0 42px #deb96a08}
+.talent-promo h3 {font-family:Oswald,Impact,sans-serif;font-size:21px;letter-spacing:.35px;margin:5px 0 6px;text-transform:uppercase}
+.talent-promo p {max-width:360px;margin:0;color:#a9b3ad;font-size:12px;line-height:1.65}
+.talent-promo .btn {flex-shrink:0;max-width:205px}
+.profile-talent-link {margin-top:12px}
+.talent-hero {position:relative;overflow:hidden;border-radius:16px;padding:25px 22px 24px;margin-bottom:13px;border:1px solid #aa814d61;background:radial-gradient(circle at 88% 12%,#be8e383a,transparent 42%),linear-gradient(135deg,#293028,#141a1d 72%)}
+.talent-hero:after {content:'✦';position:absolute;right:12px;top:-71px;font-size:250px;color:#e2b96b0b;pointer-events:none;line-height:1}
+.talent-hero h1 {font:700 clamp(36px,7vw,54px)/1.02 Oswald,Impact,sans-serif;letter-spacing:.6px;margin:12px 0 13px}
+.talent-hero h1 span {color:#e8be72}
+.talent-class {font-size:12px;color:#c8d3c4}
+.talent-score {display:flex;gap:24px;border-top:1px solid #d3b67b2a;margin-top:20px;padding-top:17px}
+.talent-score div {display:flex;flex-direction:column;gap:5px}
+.talent-score strong {font:600 35px Oswald,sans-serif;color:#edc586;line-height:1}
+.talent-score small {font-size:9px;letter-spacing:1px;color:#a5aaa6}
+.talent-intro {margin:14px 0 15px;padding:3px 3px 3px 11px;border-left:3px solid #d1a86b}
+.talent-intro strong {font:600 18px Oswald,sans-serif;color:#e4e3d8}
+.talent-intro p {font-size:11px;color:#9eaaa8;line-height:1.7;margin:5px 0 0}
+.talent-path-tabs {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:16px 0 23px}
+.talent-path-tab {min-width:0;border:1px solid #3a4746;background:#1b2428;border-radius:13px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:13px 5px 12px;color:#aab5af;cursor:pointer;min-height:96px;transition:.2s ease;font-size:11px}
+.talent-path-tab>span {font-size:25px;line-height:1.1;color:#9dabaa}
+.talent-path-tab strong {font:600 12px Oswald,sans-serif;letter-spacing:.3px;line-height:1.3;text-transform:uppercase;text-align:center;overflow-wrap:anywhere}
+.talent-path-tab small {font:600 11px Oswald,sans-serif;color:#9b8c6d}
+.talent-path-tab.active {border-color:#d6a85e;background:linear-gradient(145deg,#433724,#282c2b);color:#f0e4d0;box-shadow:0 0 0 1px #d6a85e39,0 8px 28px #0005}
+.talent-path-tab.active>span {color:#e7bf7b}
+.talent-path-tab.active small {color:#efc47a}
+.talent-path-header {display:flex;gap:14px;align-items:center;margin:0 0 20px;padding:17px;background:linear-gradient(120deg,#27302c,#1a2428);border:1px solid #485346;border-radius:13px}
+.talent-path-symbol {width:56px;height:56px;border-radius:12px;display:grid;place-items:center;flex-shrink:0;background:#d0a65e1e;border:1px solid #d0a65e4d;color:#e5bd76;font-size:28px}
+.talent-path-header h2 {font:600 23px Oswald,sans-serif;color:#f2e5c9;margin:5px 0 4px;text-transform:uppercase}
+.talent-path-header p {color:#a9b5af;font-size:11px;margin:0}
+.talent-track {display:flex;flex-direction:column;gap:0;margin:0 0 22px}
+.talent-node {display:flex;gap:10px;min-width:0}
+.talent-rail {display:flex;flex-direction:column;align-items:center;flex:0 0 57px}
+.talent-rail-icon {width:46px;height:46px;border:1px solid #647469;border-radius:12px;display:grid;place-items:center;background:#2c3635;color:#abb9b0;font-size:24px;flex-shrink:0;position:relative;z-index:1}
+.talent-node.learned .talent-rail-icon {color:#ffd187;background:linear-gradient(140deg,#604928,#353830);border-color:#ddb575;box-shadow:0 0 20px #d2a35428}
+.talent-rail-line {height:100%;flex:1;width:2px;min-height:42px;background:linear-gradient(#796343,#36413e);margin:6px 0}
+.talent-node-content {flex:1;min-width:0;margin-bottom:17px;padding:16px 14px 14px;border:1px solid #36423d;background:linear-gradient(120deg,#1e282a,#171f24);border-radius:12px;position:relative}
+.talent-node.learned .talent-node-content {border-color:#ac895258}
+.talent-node.locked .talent-node-content {background:#181e22;border-color:#283338}
+.talent-node.locked .talent-rail-icon {opacity:.5}
+.talent-node-top {display:flex;align-items:center;justify-content:space-between;gap:6px}
+.talent-node-top .eyebrow {font-size:9px;color:#a5aeaa}
+.talent-node-rank {white-space:nowrap;font:700 11px Oswald,sans-serif;color:#dabc82}
+.talent-node-content h3 {margin:8px 0 6px;font:600 21px Oswald,Impact,sans-serif;color:#ece6db}
+.talent-node-content p {margin:0 0 11px;line-height:1.65;font-size:11px;color:#9caba7}
+.talent-effect {font-size:11px;font-weight:800;letter-spacing:.35px;color:#dfb878}
+.talent-rank-bars {display:flex;gap:5px;margin:13px 0 15px}
+.talent-rank-bars span {width:38px;height:5px;border-radius:5px;background:#303d3e;border:1px solid #41504a}
+.talent-rank-bars span.filled {background:linear-gradient(90deg,#b98c49,#e7c683);border-color:#d9b777;box-shadow:0 0 10px #d8b06a2a}
+.talent-node-footer {display:flex;justify-content:space-between;align-items:center;gap:9px;flex-wrap:wrap}
+.talent-requirement {font-size:10px;color:#ae9d88;line-height:1.35}
+.talent-requirement.done {color:#9cb898}
+.talent-node-footer .btn {font-size:10px}
+.talent-summary {margin:2px 0 15px}
+.talent-summary h3 {font:600 20px Oswald,sans-serif;letter-spacing:.4px;margin:0 0 12px}
+.talent-perks {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.talent-perks>div {padding:12px 13px;border:1px solid #38433d;border-radius:9px;background:#202a29;display:flex;flex-direction:column;gap:5px}
+.talent-perks span {font-size:11px;color:#aebbb4}
+.talent-perks strong {font:600 20px Oswald,sans-serif;color:#ecc481}
+.talent-fight-panel {background:#161e23;border:1px solid #68563b;border-radius:13px;padding:15px;margin:12px 0 23px}
+.talent-fight-actions {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.talent-fight-btn {display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 9px;border:1px solid #b59053;border-radius:10px;background:linear-gradient(130deg,#443928,#242d2c);color:#f7e7c7;cursor:pointer}
+.talent-fight-btn span {font-size:26px;color:#efc781}
+.talent-fight-btn strong {font:600 14px Oswald,sans-serif}
+.talent-fight-btn small {color:#c9b79a;font-size:10px}
+.talent-fight-btn:disabled {opacity:.48;cursor:not-allowed;filter:saturate(.3)}
+.talent-combat-hint {display:flex;align-items:center;gap:13px;justify-content:space-between;color:#b1bbb5;font-size:11px;line-height:1.6;border-radius:9px;border:1px dashed #5c654f;padding:12px;margin:15px 0 24px}
+.talent-combat-hint .btn {white-space:nowrap;font-size:9px}
+@media(max-width:560px){.talent-promo{flex-direction:column;align-items:stretch}.talent-promo .btn{max-width:100%}.talent-rail{flex-basis:46px}.talent-rail-icon{width:40px;height:40px}.talent-path-header h2{font-size:19px}.talent-node-content{padding:13px 11px}.talent-node-top .eyebrow{font-size:8px}.talent-node-content h3{font-size:19px}.talent-node-footer .btn{min-width:91px}.talent-combat-hint{flex-direction:column;align-items:stretch}}
+.talent-reset {display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;margin:18px 0;border:1px solid #404947;border-radius:10px;background:#1b2429}
+.talent-reset strong {font:600 16px Oswald,sans-serif}
+.talent-reset p {color:#96a6a0;font-size:11px;line-height:1.5;margin:5px 0 0}
+.talent-reset .btn {white-space:nowrap}
+@media(max-width:460px){.talent-reset{flex-direction:column;align-items:stretch}}
