@@ -17,6 +17,9 @@ from game import (CLASSES, SKILLS, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TER
 
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger('zombo')
+# Prevent httpx from writing secret Telegram bot tokens embedded in request URLs.
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('httpcore').setLevel(logging.WARNING)
 BOT_TOKEN=os.getenv('BOT_TOKEN','')
 PUBLIC_URL=os.getenv('PUBLIC_URL','').rstrip('/')
 SECRET=os.getenv('TELEGRAM_WEBHOOK_SECRET','')
