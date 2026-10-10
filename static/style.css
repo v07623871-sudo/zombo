@@ -167,3 +167,27 @@
 .battle-warning svg{flex:0 0 17px}@keyframes warnpulse{50%{border-color:#edbd76;background:#5b3827}}
 .more-menu .symbol svg{width:22px;height:22px}
 @media(max-width:410px){.next-objective{flex-wrap:wrap}.next-objective .btn{margin-left:46px}.bestiary-portrait{height:130px}.bestiary-card{padding:0 9px 12px}}
+/* Raid operations v0.5 — compact, mobile-first */
+.raid-lead{background:radial-gradient(circle at top right,#8c493f5c,transparent 60%),linear-gradient(130deg,#342b29,#141c23 75%);padding:25px 21px;border:1px solid #8c5942;border-radius:15px;margin-bottom:23px;overflow:hidden}
+.raid-lead h1{font:700 clamp(28px,7vw,41px)/1.09 Oswald,Impact,sans-serif;margin:10px 0;color:#edddc3}
+.raid-lead p{font-size:12px;line-height:1.65;color:#bdc3bb}
+.raid-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+.raid-meta span{border-radius:7px;border:1px solid #655546;background:#292c2b;padding:7px 9px;font-size:10px;color:#e8c897}
+.raid-scenario-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:23px}
+.raid-scenario{padding:17px;background:linear-gradient(140deg,#27302f,#171e24);border:1px solid #48534d;border-radius:13px;min-width:0}
+.raid-scenario-icon{font-size:29px;margin-bottom:10px}
+.raid-scenario h3{font:600 23px/1.13 Oswald,Impact,sans-serif;color:#f0e3d1;margin:4px 0 10px}
+.raid-scenario p{font-size:11px;color:#aab4b2;line-height:1.6;min-height:38px}
+.raid-scenario-meta{display:flex;gap:5px;flex-wrap:wrap;margin:13px 0}
+.raid-scenario-meta span{font-size:10px;padding:6px 7px;border:1px solid #5b5845;border-radius:6px;color:#dfbe87}
+.raid-active{padding:18px;background:linear-gradient(150deg,#322c28,#152025);border:1px solid #8d6943;border-radius:15px;margin-bottom:21px}
+.raid-active h2{font:600 30px Oswald,sans-serif;color:#f1e1c4;margin:12px 0}
+.raid-stage{font:600 19px Oswald,sans-serif;letter-spacing:.5px;color:#eac58b;margin:0 0 12px}
+.raid-stage span{color:#dee0d6;font-size:16px}
+.raid-deadline{font-size:11px;color:#c9b296;margin:11px 0}
+.raid-roster{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:15px 0}
+.raid-member{display:flex;gap:10px;align-items:center;min-width:0;border:1px solid #4d534b;border-radius:9px;padding:9px;background:#152024}
+.raid-member>span{font-size:20px}.raid-member strong{font-size:11px;color:#e0e3d8;overflow-wrap:anywhere}.raid-member small{display:block;font-size:10px;color:#b0bbaf;margin-top:5px}
+.raid-member.out{opacity:.52}.raid-abilities{border-top:1px solid #685848;padding-top:13px}.raid-abilities h3{font:600 20px Oswald,sans-serif;color:#e9c995}
+.raid-chronicle{margin:16px 0;color:#bfc3b9;font-size:11px}.raid-chronicle summary{cursor:pointer;font-size:13px;color:#e4c391}.raid-chronicle>div{border-bottom:1px solid #3b423d;padding:8px 2px;line-height:1.5}
+@media(max-width:580px){.raid-scenario-grid{grid-template-columns:1fr}.raid-roster{grid-template-columns:1fr}.raid-scenario p{min-height:0}}

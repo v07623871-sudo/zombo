@@ -74,11 +74,11 @@ def _war_clock_tick():
     with SessionLocal.begin() as session:
         refresh_world(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.4.1',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.5.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.4.1'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.5.0'}
 
 @app.get('/')
 def home():return FileResponse(os.path.join(os.path.dirname(__file__),'static','index.html'))
@@ -173,6 +173,9 @@ def choose_class(body:Choice,request:Request,db:Session=Depends(db_session)):
 def ready(p):
     if not p.hero_class:raise ValueError('Сначала выбери класс')
     if p.cooldown and aware(p.cooldown)>now():raise ValueError('Персонаж восстанавливается после смерти')
+
+from raids import install_raids
+install_raids(app, with_player, ready)
 
 @app.post('/api/stat')
 def upgrade_stat(body:Choice,request:Request,db:Session=Depends(db_session)):
