@@ -1,4 +1,4 @@
-import os, hmac, hashlib, json, random, re, secrets, logging
+import os, hmac, hashlib, json, random, re, secrets, logging, asyncio
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qsl
@@ -10,10 +10,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import Session
 from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, Clan, Territory,
-                    MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment)
+                    MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
 from game import (CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
                   aware, max_hp, gain_xp, give_item, take_item, item_count, tick, spend_stamina,
                   player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync)
+
+from clan_wars import (WAR_TIMEZONE, LOCATION_TERRITORY, MIN_BID, phase, next_war_date, war_date_for_bid,
+    can_command, bid as place_bid, appoint as appoint_warlord, roster as set_roster, war_action,
+    war_view, refresh_world, zombie_tax, collect_tax, settle_war, local)
 
 logging.basicConfig(level=logging.INFO)
 # HTTPX INFO logs include Telegram token in the request URL.
@@ -42,19 +46,39 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     with SessionLocal.begin() as db:
         for key in TERRITORIES:
-            if not db.get(Territory,key):db.add(Territory(id=key))
+            if not db.get(Territory,key): db.add(Territory(id=key))
+            if not db.get(TerritoryTax,key): db.add(TerritoryTax(territory_id=key, last_collection=now()))
     if BOT_TOKEN and PUBLIC_URL and SECRET:
         result=await telegram_api('setWebhook',{'url':f'{PUBLIC_URL}/telegram/webhook','secret_token':SECRET,'allowed_updates':['message','pre_checkout_query']})
         logger.info('Webhook configured: %s',bool(result.get('ok')))
         await telegram_api('setChatMenuButton',{'menu_button':{'type':'web_app','text':'Открыть ZOMBO','web_app':{'url':PUBLIC_URL}}})
         await telegram_api('setMyCommands',{'commands':[{'command':'start','description':'Начать игру'},{'command':'profile','description':'Персонаж'},{'command':'daily','description':'Ежедневная награда'},{'command':'help','description':'Как играть'}]})
-    yield
+    loop = asyncio.create_task(_war_clock_loop())
+    try:
+        yield
+    finally:
+        loop.cancel()
+        try: await loop
+        except asyncio.CancelledError: pass
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.2.0',lifespan=lifespan)
+async def _war_clock_loop():
+    # Database timestamps + row locks make scheduled work durable/idempotent.
+    while True:
+        try:
+            await asyncio.to_thread(_war_clock_tick)
+        except Exception:
+            logger.exception('Clan war and territorial tax scheduler failed')
+        await asyncio.sleep(25)
+
+def _war_clock_tick():
+    with SessionLocal.begin() as session:
+        refresh_world(session)
+
+app=FastAPI(title='ZOMBO · After the Fall',version='0.3.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.2.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.3.0'}
 
 @app.get('/')
 def home():return FileResponse(os.path.join(os.path.dirname(__file__),'static','index.html'))
@@ -126,7 +150,7 @@ def with_player(request:Request, db: Session):
     return p
 
 @app.get('/api/config')
-def config():return {'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES}
+def config():return {'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES,'war_timezone':WAR_TIMEZONE,'location_territories':LOCATION_TERRITORY}
 
 @app.get('/api/me')
 def me(request:Request,db:Session=Depends(db_session)):
@@ -357,8 +381,17 @@ def clans(request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db)
         cs=db.scalars(select(Clan).order_by(Clan.level.desc(),Clan.treasury.desc()).limit(30)).all()
-        return {'mine':p.clan_id,'list':[{'id':c.id,'name':c.name,'level':c.level,'treasury':c.treasury,
-          'members':db.scalar(select(func.count()).select_from(Player).where(Player.clan_id==c.id))} for c in cs]}
+        mine=db.get(Clan,p.clan_id) if p.clan_id else None
+        players=db.scalars(select(Player).where(Player.clan_id==p.clan_id).order_by(Player.level.desc())).all() if p.clan_id else []
+        officers=db.scalars(select(ClanOfficer).where(ClanOfficer.clan_id==p.clan_id)).all() if p.clan_id else []
+        officer_ids={o.player_id for o in officers}
+        return {'mine':p.clan_id,'leader_id':mine.leader_id if mine else None,
+                'can_command':can_command(db,p,mine),
+                'warlord_ids':list(officer_ids),
+                'members':[{'id':m.id,'name':m.name,'level':m.level,'class':m.hero_class,
+                            'leader':bool(mine and m.id==mine.leader_id),'warlord':m.id in officer_ids} for m in players],
+                'list':[{'id':c.id,'name':c.name,'level':c.level,'treasury':c.treasury,
+                 'members':db.scalar(select(func.count()).select_from(Player).where(Player.clan_id==c.id))} for c in cs]}
 
 @app.post('/api/clans/create')
 def clan_create(body:ClanCreate,request:Request,db:Session=Depends(db_session)):
@@ -394,10 +427,19 @@ def clan_leave(request:Request,db:Session=Depends(db_session)):
         if not p.clan_id:raise ValueError('Нет клана')
         c=db.scalar(select(Clan).where(Clan.id==p.clan_id).with_for_update())
         members=db.scalars(select(Player).where(Player.clan_id==p.clan_id,Player.id!=p.id).order_by(Player.level.desc())).all()
+        officer=db.scalar(select(ClanOfficer).where(ClanOfficer.clan_id==p.clan_id,ClanOfficer.player_id==p.id))
+        if officer:db.delete(officer)
         if c and c.leader_id==p.id:
             if members:c.leader_id=members[0].id
             else:
-                for t in db.scalars(select(Territory).where(Territory.clan_id==c.id)):t.clan_id=None
+                for t in db.scalars(select(Territory).where(Territory.clan_id==c.id)):
+                    collect_tax(db,t.id,force=True)
+                    t.clan_id=None
+                for off in db.scalars(select(ClanOfficer).where(ClanOfficer.clan_id==c.id)):
+                    db.delete(off)
+                for war in db.scalars(select(TerritoryWar).where(TerritoryWar.attacker_clan_id==c.id, TerritoryWar.status!='resolved')):
+                    war.status='resolved';war.winner_clan_id=None
+                    war.log=[*(war.log or [])[-69:],'Клан распущен: ставка аннулирована.']
                 db.delete(c)
         p.clan_id=None
         return {'message':'Ты покинула клан'}
@@ -416,30 +458,78 @@ def clan_donate(body:Amount,request:Request,db:Session=Depends(db_session)):
 
 @app.get('/api/territories')
 def territories(db:Session=Depends(db_session)):
-    ts=db.scalars(select(Territory)).all()
-    ids={t.clan_id for t in ts if t.clan_id}
-    names={c.id:c.name for c in db.scalars(select(Clan).where(Clan.id.in_(ids)))}
-    return [{'id':t.id,'name':TERRITORIES[t.id],'owner':names.get(t.clan_id,'Заражённые'),'clan_id':t.clan_id,'strength':t.strength,
-             'next_attack':aware(t.next_attack).isoformat() if t.next_attack else None} for t in ts]
+    with db.begin():
+        refresh_world(db)
+        ts=db.scalars(select(Territory)).all()
+        ids={t.clan_id for t in ts if t.clan_id}
+        names={c.id:c.name for c in db.scalars(select(Clan).where(Clan.id.in_(ids)))}
+        taxes={x.territory_id:x for x in db.scalars(select(TerritoryTax))}
+        return [{'id':t.id,'name':TERRITORIES[t.id],'owner':names.get(t.clan_id,'Свободна'),
+                 'clan_id':t.clan_id,'strength':t.strength,
+                 'tax_pending':taxes[t.id].pending if t.id in taxes else 0,
+                 'tax_collected':taxes[t.id].collected if t.id in taxes else 0,
+                 'tax_next':(aware(taxes[t.id].last_collection)+timedelta(hours=5)).isoformat() if t.id in taxes else None,
+                 'locations':[LOCATIONS[key]['name'] for key,region in LOCATION_TERRITORY.items() if region==t.id]}
+                for t in ts]
 
-@app.post('/api/territories/attack')
-def attack_territory(body:Choice,request:Request,db:Session=Depends(db_session)):
+@app.get('/api/territories/wars')
+def wars(request:Request,db:Session=Depends(db_session)):
+    with db.begin():
+        p=with_player(request,db)
+        refresh_world(db)
+        rows=db.scalars(select(TerritoryWar).where(TerritoryWar.war_date >= (local().date()-timedelta(days=3)).isoformat())
+                        .order_by(TerritoryWar.war_date.desc(),TerritoryWar.territory_id).limit(30)).all()
+        return {'timezone':WAR_TIMEZONE,'phase':phase(),'bid_date':war_date_for_bid(),
+                'next_war_date':next_war_date(),'min_bid':MIN_BID,
+                'wars':[war_view(db,w,p.id) for w in rows]}
+
+class TerritoryBid(BaseModel):
+    key:str=Field(min_length=1,max_length=30)
+    amount:int=Field(ge=1,le=1000000)
+
+@app.post('/api/territories/bid')
+def territory_bid(body:TerritoryBid,request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db);ready(p)
-        if not p.clan_id:raise ValueError('Войны доступны только кланам')
-        t=db.scalar(select(Territory).where(Territory.id==body.key).with_for_update())
-        if not t:raise ValueError('Нет такой территории')
-        if t.clan_id==p.clan_id:raise ValueError('Это ваша территория')
-        if t.next_attack and aware(t.next_attack)>now():raise ValueError('Территория под защитой после нападения')
-        spend_stamina(p,40)
-        c=db.scalar(select(Clan).where(Clan.id==p.clan_id).with_for_update())
-        strength=attack_power(db,p)+random.randint(0,30)+(c.level-1)*10
-        t.next_attack=now()+timedelta(minutes=30)
-        if strength>=t.strength:
-            t.clan_id=c.id;t.strength=min(600,int(strength*1.2));p.caps+=90
-            return {'message':f'Территория «{TERRITORIES[t.id]}» захвачена кланом! +90 крышек'}
-        t.strength=max(1,t.strength-int(strength*.55))
-        return {'message':f'Атака отбита. Оборона ослаблена до {t.strength}'}
+        w=place_bid(db,p,body.key,body.amount)
+        return {'message':f'Ставка {w.bid} крышек принята. Торги завершатся в полночь перед КВ.'}
+
+class PlayerIdForWar(BaseModel):
+    player_id:int=Field(gt=0)
+
+@app.post('/api/clans/warlord')
+def make_warlord(body:PlayerIdForWar,request:Request,db:Session=Depends(db_session)):
+    with db.begin():
+        p=with_player(request,db)
+        target=appoint_warlord(db,p,body.player_id)
+        return {'message':f'{target.name} назначена воеводой клана.'}
+
+class WarRosterBody(BaseModel):
+    war_id:int=Field(gt=0)
+    player_id:int=Field(gt=0)
+    include:bool=True
+
+@app.post('/api/territories/roster')
+def war_roster(body:WarRosterBody,request:Request,db:Session=Depends(db_session)):
+    with db.begin():
+        p=with_player(request,db)
+        set_roster(db,p,body.war_id,body.player_id,body.include)
+        return {'message':'Боец зачислен в отряд' if body.include else 'Боец снят с КВ'}
+
+class WarActBody(BaseModel):
+    war_id:int=Field(gt=0)
+    action:str=Field(max_length=12)
+
+@app.post('/api/territories/act')
+def act_war(body:WarActBody,request:Request,db:Session=Depends(db_session)):
+    with db.begin():
+        p=with_player(request,db);ready(p)
+        result=war_action(db,p,body.war_id,body.action)
+        return {'message':result}
+
+@app.post('/api/territories/attack')
+def old_territory_attack():
+    raise HTTPException(410,'Мгновенные захваты отключены. Используй торги и КВ по расписанию.')
 
 @app.get('/api/market')
 def market(db:Session=Depends(db_session)):

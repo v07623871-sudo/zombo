@@ -311,7 +311,10 @@ def combat_round(db,p,b,action,zone='body'):
         xp=int((35+b.enemy_max_hp*.3)*random.uniform(.85,1.15))
         caps=int((random.randint(9,32)+b.enemy_damage)*(1+talent_bonus(p,'caps')))
         xp_levels=gain_xp(p,xp)
-        p.caps+=caps
+        # Territorial tribute comes from the zombie reward, not from thin air.
+        from clan_wars import zombie_tax
+        territorial_tax=zombie_tax(db,p,caps)
+        p.caps+=caps-territorial_tax
         loot=[]
         loot_bonus=2 if p.loot_boost_until and aware(p.loot_boost_until)>now() else 1
         if random.random()<min(.98,.44*CLASSES[p.hero_class]['loot']*loot_bonus+talent_bonus(p,'loot')):
@@ -320,7 +323,7 @@ def combat_round(db,p,b,action,zone='body'):
             progress(db,p.id,'scavenge')
         progress(db,p.id,'kills')
         db.delete(b)
-        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps} крышек'+(' · Новый уровень!' if xp_levels else ''),'loot':loot}
+        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps-territorial_tax} крышек'+(f' · Налог территории: {territorial_tax}' if territorial_tax else '')+(' · Новый уровень!' if xp_levels else ''),'loot':loot,'tax':territorial_tax}
     defense=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key=='vest'))
     raw=max(1,b.enemy_damage+random.randint(-3,5)-(4 if defense else 0)-(8 if action=='defend' else 0))
     evade_chance=min(.7,talent_bonus(p,'dodge')+extra_dodge)

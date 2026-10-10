@@ -90,3 +90,29 @@
 .talent-reset p {color:#96a6a0;font-size:11px;line-height:1.5;margin:5px 0 0}
 .talent-reset .btn {white-space:nowrap}
 @media(max-width:460px){.talent-reset{flex-direction:column;align-items:stretch}}
+
+
+/* Territory wars · detailed campaign cards */
+.war-banner {background:linear-gradient(132deg,#22242a,#11171b 72%);padding:20px;border:1px solid #68513a;border-radius:14px;margin-bottom:14px}
+.war-banner h2 {font:600 clamp(23px,5vw,34px) Oswald,Arial,sans-serif;margin:9px 0 15px;color:#d4b37a}
+.war-schedule {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.war-schedule span{background:#11151a;border:1px solid #3d3b36;padding:11px 6px;text-align:center;border-radius:9px;color:#92999c;font-size:10px;line-height:1.7}
+.war-schedule b{color:#d7b574;font-size:11px}
+.war-territories{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:13px}
+.war-territory{background:linear-gradient(154deg,#1c2226,#11161b);border:1px solid #3b4145;border-radius:14px;padding:19px;min-width:0}
+.war-territory h3{font:600 24px Oswald,Arial;margin:12px 0 5px}
+.war-taxes{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:13px 0}
+.war-taxes span{background:#0e1418;padding:11px;border:1px solid #30393b;border-radius:8px;display:grid;gap:3px}
+.war-taxes small{font-size:10px;color:#91a0a3}.war-taxes b{font-size:16px;color:#d4b37a}
+.war-event{border-top:1px solid #4e4740;margin-top:15px;padding-top:15px}
+.war-event h4{margin:10px 0;font:600 17px Oswald}.war-gold{font-size:14px;color:#d4b37a}
+.war-armies{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.war-armies>div{background:#0e1316;border:1px solid #293638;border-radius:8px;padding:9px;min-width:0}
+.war-armies strong{color:#c7ae82;font-size:10px;display:block;margin-bottom:7px}
+.war-fighter{padding:6px 0;border-top:1px solid #283034;display:flex;align-items:center;gap:6px;justify-content:space-between;min-width:0}
+.war-fighter b,.war-fighter small{font-size:11px;display:block;overflow-wrap:anywhere}.war-fighter small{color:#96a4a9}.war-fighter.fallen{opacity:.45}
+.war-deploy{background:#1a2629;padding:12px;border-radius:8px;margin:10px 0}
+.war-deploy label{font-size:11px;color:#b9a785}.war-deploy-controls{display:flex;gap:8px;align-items:center}.war-deploy select{flex:1;min-width:0;max-width:100%;padding:9px;background:#11171a;border:1px solid #62615b;color:#f1efea;border-radius:7px}
+.war-current{border:1px solid #8a6741;padding:13px;border-radius:8px;margin-top:10px;background:#2d241f}
+.war-chronicle{margin-top:12px;font-size:12px;color:#c0c4c2}.war-chronicle div{border-bottom:1px solid #30383a;padding:5px 0}
+@media(max-width:390px){.war-schedule{grid-template-columns:1fr}.war-armies{grid-template-columns:1fr}}

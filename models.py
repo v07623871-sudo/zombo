@@ -142,3 +142,45 @@ class Payment(Base):
     stars = Column(Integer)
     zombo = Column(Integer)
     created_at = Column(DateTime(timezone=True), default=now)
+
+class ClanOfficer(Base):
+    """Additional clan permission (leader is stored in Clan)."""
+    __tablename__ = 'clan_officers'
+    clan_id = Column(Integer, ForeignKey('clans.id'), primary_key=True)
+    player_id = Column(BigInteger, ForeignKey('players.id'), primary_key=True)
+    role = Column(String(20), nullable=False, default='warlord')
+
+class TerritoryTax(Base):
+    __tablename__ = 'territory_taxes'
+    territory_id = Column(String(30), ForeignKey('territories.id'), primary_key=True)
+    pending = Column(BigInteger, nullable=False, default=0)
+    collected = Column(BigInteger, nullable=False, default=0)
+    remainder = Column(Integer, nullable=False, default=0)
+    last_collection = Column(DateTime(timezone=True), default=now, nullable=False)
+
+class TerritoryWar(Base):
+    __tablename__ = 'territory_wars'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    territory_id = Column(String(30), ForeignKey('territories.id'), nullable=False, index=True)
+    war_date = Column(String(10), nullable=False)
+    attacker_clan_id = Column(Integer, nullable=True)
+    defender_clan_id = Column(Integer, nullable=True)
+    bid = Column(Integer, nullable=False, default=0)
+    status = Column(String(20), default='bidding', nullable=False)
+    round = Column(Integer, default=0, nullable=False)
+    winner_clan_id = Column(Integer, nullable=True)
+    log = Column(JSON, default=list)
+    __table_args__ = (UniqueConstraint('territory_id','war_date',name='uq_war_territory_date'),)
+
+class WarFighter(Base):
+    __tablename__ = 'war_fighters'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    war_id = Column(Integer, ForeignKey('territory_wars.id'), nullable=False, index=True)
+    player_id = Column(BigInteger, ForeignKey('players.id'), nullable=False)
+    side = Column(String(12), nullable=False)  # attacker | defender
+    hp = Column(Integer, nullable=False)
+    max_hp = Column(Integer, nullable=False)
+    damage = Column(Integer, nullable=False, default=0)
+    last_action_round = Column(Integer, default=-1, nullable=False)
+    guarding_round = Column(Integer, default=-1, nullable=False)
+    __table_args__ = (UniqueConstraint('war_id','player_id',name='uq_war_fighter'),)
