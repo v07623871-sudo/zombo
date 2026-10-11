@@ -5,4 +5,5 @@ RUN apk add --no-cache python3 py3-pip \
 ENV PATH="/opt/backup-venv/bin:${PATH}" PYTHONUNBUFFERED=1
 WORKDIR /opt/zombo-backup
 COPY worker.py /opt/zombo-backup/worker.py
+COPY restore_test.py /opt/zombo-backup/restore_test.py
 CMD ["python", "worker.py"]
