@@ -1,6 +1,7 @@
 import os, hmac, hashlib, json, random, re, secrets, logging, asyncio
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
+from security import ApiQuota, TelegramReceipt, TooManyActions, enforce_quota, claim_update, finish_update, prune_update_receipts
 from urllib.parse import parse_qsl
 import httpx
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
@@ -92,12 +93,13 @@ def _war_clock_tick():
     with SessionLocal.begin() as session:
         refresh_world(session)
         expire_sales(session)
+        prune_update_receipts(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.9.3',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.10.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.9.3'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.10.0'}
 
 @app.get('/ready')
 def readiness():
@@ -113,6 +115,27 @@ def home():return FileResponse(os.path.join(os.path.dirname(__file__),'static','
 
 @app.middleware('http')
 async def secure_headers(request, call_next):
+    if request.method == 'POST' and request.url.path.startswith('/api/'):
+        # Only signed Telegram users are charged; anonymous malformed requests
+        # still receive their ordinary authentication failure from the endpoint.
+        auth = request.headers.get('authorization', '')
+        try:
+            pid = identify(auth)['id']
+        except HTTPException:
+            pid = None
+        if pid is not None:
+            economic = request.url.path.startswith(('/api/market/', '/api/gear-market/',
+                        '/api/shop/', '/api/stars/', '/api/premium/', '/api/admin/',
+                        '/api/clans/donate', '/api/territories/bid'))
+            try:
+                # Commit throttle counters even when a request is denied.
+                with SessionLocal.begin() as quota_db:
+                    enforce_quota(quota_db, pid, 'write', limit=180)
+                    if economic:
+                        enforce_quota(quota_db, pid, 'economy', limit=30)
+            except TooManyActions as exc:
+                return JSONResponse({'detail':str(exc)}, status_code=429,
+                                    headers={'Retry-After':str(exc.retry_after)})
     response=await call_next(request)
     response.headers['X-Content-Type-Options']='nosniff'
     response.headers['Referrer-Policy']='strict-origin-when-cross-origin'
@@ -887,13 +910,37 @@ async def webhook(request:Request):
     if not SECRET or not hmac.compare_digest(request.headers.get('x-telegram-bot-api-secret-token',''),SECRET):
         raise HTTPException(403,'Forbidden')
     data=await request.json()
+    # Telegram includes update_id on real deliveries. Older tests and legacy
+    # manually sent messages without one retain their original behavior.
+    update_id = data.get('update_id')
+    if update_id is None:
+        return await _dispatch_update(data)
+    with SessionLocal.begin() as db:
+        status, lease = claim_update(db, update_id)
+    if status == 'duplicate':
+        return {'ok':True, 'duplicate':True}
+    if status == 'busy':
+        raise HTTPException(503,'Telegram update is being processed')
+    try:
+        result = await _dispatch_update(data)
+    except BaseException:
+        with SessionLocal.begin() as db:
+            finish_update(db, update_id, completed=False, lease=lease)
+        raise
+    with SessionLocal.begin() as db:
+        finish_update(db, update_id, completed=True, lease=lease)
+    return result
+
+
+async def _dispatch_update(data):
     if 'pre_checkout_query' in data:
         q=data['pre_checkout_query'];valid=False
         try:
             with SessionLocal() as db:
                 valid=invoice_offer(db,q['invoice_payload'],q['from']['id'],q['currency'],q['total_amount'],checkout=True) is not None
         except (ValueError,KeyError,TypeError):pass
-        await telegram_api('answerPreCheckoutQuery',{'pre_checkout_query_id':q['id'],'ok':valid,'error_message':'Ошибка данных заказа' if not valid else None})
+        reply = await telegram_api('answerPreCheckoutQuery',{'pre_checkout_query_id':q['id'],'ok':valid,'error_message':'Ошибка данных заказа' if not valid else None})
+        if not reply.get('ok'):raise HTTPException(503,'Telegram checkout response failed')
     msg=data.get('message')
     if not msg:return {'ok':True}
     chat_id=msg.get('chat',{}).get('id');user=msg.get('from',{})
@@ -1012,6 +1059,7 @@ async def webhook(request:Request):
         else:reply='🧟 ZOMBO: After the Fall\n1. Выбери класс и отправься в Мёртвый лес.\n2. Побеждай заражённых и открывай досье врагов.\n3. Прокачивай три ветки талантов.\n4. Вступи в клан и борись за территории!\n\nКоманды: /help'
         message={'chat_id':chat_id,'text':reply}
         if PUBLIC_URL:message['reply_markup']={'inline_keyboard':[[{'text':'🎮 Открыть ZOMBO','web_app':{'url':PUBLIC_URL}}]]}
-        await telegram_api('sendMessage',message)
+        sent = await telegram_api('sendMessage',message)
+        if not sent.get('ok'):raise HTTPException(503,'Telegram message delivery failed')
     return {'ok':True}
 

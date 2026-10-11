@@ -38,3 +38,11 @@
 - `scripts/migrate.py`: проверка существующих колонок и создание недостающих таблиц без очистки данных. `scripts/backup_postgres.py`: `pg_dump` с проверкой архива через `pg_restore --list`.
 - `tests/test_admin.py`, `tests/test_migrate.py`, `tests/test_payments.py`, `tests/test_raids.py`, `tests/test_bot_commands.py`: регрессионные сценарии. `tests/test_gear_market.py`: устранено загрязнение `sys.modules`, мешавшее запуску всего набора тестов.
 - Сохранены все исходные SVG-портреты, арты зомби и стиль игры.
+
+## ZOMBO 0.10.0 — защита и инфраструктура
+
+- `security.py`: SQL-лимиты игровых POST-запросов по проверенным Telegram-ID. Лимит обычных действий 180/мин, дополнительный лимит экономики 30/мин, `429 Retry-After`.
+- `security.py` + `app.py`: повторная доставка одного Telegram `update_id` не выполняется повторно. Receipt хранится в PostgreSQL/SQLite, процесс имеет lease, сообщение повторяется при сбое, устаревшие завершённые receipts удаляются через 7 дней.
+- `ops/backup`: отдельный Docker-воркер ежедневного `pg_dump -Fc` с проверкой `pg_restore --list`, загрузкой и проверкой размера приватного S3-объекта и хранением последних 30 суток. Работает только после настройки Railway bucket и cron service.
+- `tests/test_security.py`, `tests/test_backup_worker.py`: регрессии квот, ошибок доставки Telegram, дедупликации, окончания lease и изоляции backup-prefix.
+- В БД добавляются только новые таблицы `api_quotas` и `telegram_receipts`, без очистки данных игроков и платежей.
