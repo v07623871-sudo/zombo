@@ -41,7 +41,7 @@ def test_admin_risk_permissions_and_export_with_spreadsheet_safety():
             assert body['disclaimer'] and body['total_findings'] >= 4
             exported = client.get('/api/admin/audit/export?limit=100', headers=headers(admin_id))
             assert exported.status_code == 200, exported.text
-            assert exported.content.startswith(b'\\xef\\xbb\\xbf')
+            assert exported.content.startswith(bytes([239, 187, 191]))
             assert 'text/csv' in exported.headers['content-type']
             assert 'no-store' in exported.headers['cache-control']
             assert "'=SUM(1,2)" in exported.text
