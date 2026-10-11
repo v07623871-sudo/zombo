@@ -2,7 +2,7 @@
 import os
 from fastapi.testclient import TestClient
 from sqlalchemy import select
-from models import Base, SessionLocal, engine, Player, Clan
+from models import Base, SessionLocal, engine, Player, Clan, now
 from game import progress
 from clan_missions import ClanMission, ClanSeasonScore, TASKS
 from app import app
