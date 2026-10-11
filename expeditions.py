@@ -24,7 +24,31 @@ SCENARIOS = {
     'convoy': {'name': 'Конвой через пустошь', 'level': 25, 'xp': 720,
                'caps': 480, 'gear': 'rifle', 'rarity': 'epic',
                'desc': 'Проведи караван сквозь заражённые территории.'},
+    'hospital': {'name': 'Заражённый госпиталь', 'level': 12, 'xp': 390,
+                 'caps': 260, 'gear': 'vest', 'rarity': 'rare',
+                 'desc': 'Забери медикаменты и броню из закрытого госпитального корпуса.'},
+    'bunker': {'name': 'Бункер «Ноль»', 'level': 40, 'xp': 1040,
+               'caps': 760, 'gear': 'rifle', 'rarity': 'legendary',
+               'desc': 'Штурмуй секретный комплекс, откуда началось заражение.'},
 }
+
+# Each expedition has one durable incident that becomes actionable after 4 hours.
+# A fixed secret roll prevents the leader from re-rolling the outcome by tapping again.
+INCIDENTS = {
+    'relay': ('Чужой голос', 'По аварийной частоте кто-то зовёт на помощь. Время на исходе.',
+              'Проверить источник сигнала', 'Идти напролом к радиобашне'),
+    'convoy': ('Мост без опор', 'Перед конвоем провал, а за спиной слышны заражённые.',
+               'Провести груз в обход', 'Прорваться по обломкам'),
+    'hospital': ('Закрытое крыло', 'В палатах слышится движение. Сканер показывает десятки целей.',
+                 'Зачистить входы', 'Рискнуть и проникнуть через подвал'),
+    'bunker': ('Система карантина', 'Автоматика запирает бронедвери и включает сирену.',
+               'Тихо отключить сигнализацию', 'Взломать дверь силой'),
+}
+EVENT_CHOICES = {
+    'cautious': {'chance': 12, 'reward_percent': 85, 'label': 'ОСТОРОЖНО', 'hint': '+12% к шансу · 85% XP и крышек'},
+    'risky': {'chance': -8, 'reward_percent': 135, 'label': 'РИСКОВАТЬ', 'hint': '−8% к шансу · 135% XP и крышек'},
+}
+EVENT_DELAY_HOURS = 4
 ROLES = {'scout': 'Разведчик', 'guard': 'Защитник', 'medic': 'Медик', 'engineer': 'Техник'}
 CLASS_AFFINITY = {'scout': 'thief', 'guard': 'soldier', 'medic': 'medic', 'engineer': 'assassin'}
 MIN_PARTY = 3
@@ -47,6 +71,18 @@ class ExpeditionRun(Base):
     will_succeed = Column(Boolean)
 
 
+class ExpeditionIncident(Base):
+    __tablename__ = 'expedition_incidents'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_id = Column(Integer, ForeignKey('expedition_runs.id'), nullable=False, unique=True, index=True)
+    key = Column(String(30), nullable=False)
+    # Server-side roll, never exposed to the clients; one roll per run.
+    roll = Column(Integer, nullable=False)
+    choice = Column(String(20), nullable=True)
+    reward_percent = Column(Integer, nullable=False, default=100)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+
+
 class ExpeditionMember(Base):
     __tablename__ = 'expedition_members'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -67,6 +103,10 @@ class CreateRequest(BaseModel):
 
 class PrepareRequest(RunRequest):
     role: str = Field(min_length=1, max_length=20)
+
+
+class EventRequest(RunRequest):
+    choice: str = Field(min_length=1, max_length=20)
 
 
 def aware(value: datetime | None):
@@ -109,7 +149,19 @@ def members(db: Session, run_id: int):
 def view(db: Session, run: ExpeditionRun, player_id: int):
     crew = members(db, run.id)
     names = {p.id: p.name for p in db.scalars(select(Player).where(Player.id.in_([m.player_id for m in crew])))}
+    incident = db.scalar(select(ExpeditionIncident).where(ExpeditionIncident.run_id == run.id))
+    event = None
+    if incident and run.started_at:
+        title, description, cautious, risky = INCIDENTS[incident.key]
+        unlock = aware(run.started_at) + timedelta(hours=EVENT_DELAY_HOURS)
+        event = {'title': title, 'description': description, 'available_at': unlock.isoformat(),
+                 'ready': now() >= unlock, 'choice': incident.choice,
+                 'choice_label': ({'cautious': cautious, 'risky': risky}.get(incident.choice)),
+                 'reward_percent': incident.reward_percent,
+                 'options': {'cautious': {**EVENT_CHOICES['cautious'], 'text': cautious},
+                             'risky': {**EVENT_CHOICES['risky'], 'text': risky}}}
     return {'id': run.id, 'scenario': run.scenario, 'name': SCENARIOS[run.scenario]['name'],
+            'event': event,
             'status': run.status, 'leader_id': run.creator_id, 'member_count': len(crew),
             'lobby_expires_at': aware(run.lobby_expires_at).isoformat(),
             'finishes_at': aware(run.finishes_at).isoformat() if run.finishes_at else None,
@@ -255,11 +307,44 @@ def install_expeditions(app, with_player, ready):
             if len({m.role for m in crew}) < 2:
                 raise ValueError('Нужны минимум две разные роли')
             run.success_chance = success_chance(db, run, crew)
-            run.will_succeed = secrets.randbelow(100) < run.success_chance
+            roll = secrets.randbelow(100)
+            run.will_succeed = roll < run.success_chance
+            db.add(ExpeditionIncident(run_id=run.id, key=run.scenario, roll=roll))
             run.status = 'active'
             run.started_at = now()
             run.finishes_at = run.started_at + timedelta(hours=RUN_HOURS)
             return {'message': f'Отряд вышел. Возвращение через {RUN_HOURS} часов.'}
+
+    @router.post('/event')
+    def choose_event(body: EventRequest, request: Request, db: Session = Depends(session)):
+        with db.begin():
+            player = with_player(request, db); ready(player)
+            run = db.scalar(select(ExpeditionRun).where(ExpeditionRun.id == body.id).with_for_update())
+            if not run or run.status != 'active' or not run.finishes_at:
+                raise ValueError('Эта экспедиция уже завершена или не началась')
+            instant = now()
+            if aware(run.finishes_at) <= instant:
+                settle(db, run, instant)
+                raise ValueError('Отряд уже вернулся, решение принять нельзя')
+            if run.creator_id != player.id:
+                raise ValueError('Решение принимает только лидер отряда')
+            if not run.started_at or aware(run.started_at) + timedelta(hours=EVENT_DELAY_HOURS) > instant:
+                raise ValueError('Инцидент появится через четыре часа после выхода отряда')
+            event = db.scalar(select(ExpeditionIncident).where(ExpeditionIncident.run_id == run.id).with_for_update())
+            if not event:
+                raise ValueError('В этой экспедиции нет доступного инцидента')
+            if event.choice:
+                raise ValueError('Решение уже принято и не может быть изменено')
+            if body.choice not in EVENT_CHOICES:
+                raise ValueError('Неизвестное решение')
+            effect = EVENT_CHOICES[body.choice]
+            event.choice = body.choice
+            event.reward_percent = effect['reward_percent']
+            event.resolved_at = instant
+            run.success_chance = max(15, min(95, run.success_chance + effect['chance']))
+            run.will_succeed = event.roll < run.success_chance
+            return {'message': f'Решение принято. Шанс успеха теперь {run.success_chance}%.',
+                    'success_chance': run.success_chance, 'reward_percent': event.reward_percent}
 
     @router.post('/claim')
     def claim(body: RunRequest, request: Request, db: Session = Depends(session)):
@@ -278,17 +363,21 @@ def install_expeditions(app, with_player, ready):
             if member.rewarded:
                 raise ValueError('Награда уже получена')
             config = SCENARIOS[run.scenario]
+            event = db.scalar(select(ExpeditionIncident).where(ExpeditionIncident.run_id == run.id))
+            modifier = event.reward_percent if event and event.choice else 100
+            xp = max(1, config['xp'] * modifier // 100)
+            caps = max(1, config['caps'] * modifier // 100)
             if run.status == 'cleared':
                 # Gear capacity is checked before the other rewards; a failure
                 # rolls the entire transaction back, including the claim flag.
                 item = create_gear(db, player.id, config['gear'], config['rarity'], 'expedition')
-                gain_xp(player, config['xp'])
-                player.caps += config['caps']
+                gain_xp(player, xp)
+                player.caps += caps
                 give_item(db, player.id, 'metal', 3)
-                message = f'Экспедиция успешна! +{config["xp"]} XP, +{config["caps"]} крышек, металл и снаряжение #{item.id}.'
+                message = f'Экспедиция успешна! +{xp} XP, +{caps} крышек, металл и снаряжение #{item.id}.'
             else:
-                gain_xp(player, config['xp'] // 4)
-                player.caps += config['caps'] // 4
+                gain_xp(player, xp // 4)
+                player.caps += caps // 4
                 message = 'Отряд вернулся с потерями. Получена утешительная награда.'
             member.rewarded = True
             return {'message': message, 'status': run.status}
