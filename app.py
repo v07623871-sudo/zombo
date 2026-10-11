@@ -93,11 +93,11 @@ def _war_clock_tick():
         refresh_world(session)
         expire_sales(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.9.2',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.9.3',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.9.2'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.9.3'}
 
 @app.get('/ready')
 def readiness():
