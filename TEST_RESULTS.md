@@ -33,7 +33,16 @@
 
 ## ZOMBO 0.10.0 local verification
 
-- `python -m pytest -q tests`: **62 passed** (SQLite integration and unit tests)
+- `python -m pytest -q tests`: **63 passed** (SQLite integration and unit tests)
 - `node --check static/app.js`: passed, frontend changed minimally
 - `python -m compileall -q .`: passed
 - Production PostgreSQL concurrency, a scheduled backup run, and actual restore drill must be verified after deployment; local unit tests cannot certify them.
+
+
+### Production Railway backup evidence — 2026-10-11
+
+- Service `zombo-backup`: `SUCCESS`, cron `0 3 * * *` UTC. Private Railway bucket in `ams`.
+- Smoke dump log: `Backup uploaded and verified: s3://zombo-backups-0-siuksukgo/zombo-postgres/20261011T140110Z.dump (70872 bytes)`; 30-day retention active.
+- Disposable PostgreSQL restore-test service log: `Restore drill succeeded: downloaded and restored 70872 bytes; checked 3 critical tables, player rows: 6.`
+- Temporary database and restore-runner removed immediately after the drill; production database untouched.
+- Game app and PostgreSQL deployments: `SUCCESS`. Future daily cron runs still require monitoring and alerting.

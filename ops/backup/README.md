@@ -14,6 +14,7 @@ service variables as **Railway secret/reference variables**, not as literals in 
 - `S3_ACCESS_KEY_ID=${{<YOUR-BUCKET-NAME>.ACCESS_KEY_ID}}`
 - `S3_SECRET_ACCESS_KEY=${{<YOUR-BUCKET-NAME>.SECRET_ACCESS_KEY}}`
 - `BACKUP_RETENTION_DAYS=30`
+- `S3_ADDRESSING_STYLE=virtual` (Railway buckets; use `path` for path-style S3)
 
 Set the service root directory to `/ops/backup`, Dockerfile to `Dockerfile`, and cron schedule to
 `0 3 * * *` (daily at 03:00 UTC), restart policy NEVER, and no HTTP healthcheck.
@@ -38,3 +39,7 @@ adding this code; the Railway cron service and private bucket are required.**
 
 Railway production services should keep `DEMO_MODE=0`. Protect S3 access keys
 like payment secrets. Bucket creation, storage and cron executions may incur cost.
+
+### Verified existing Railway deployment — 2026-10-11
+
+A 70 872-byte production dump was successfully uploaded to a private bucket and **restored** into a separate disposable PostgreSQL 18 database; `players`, `star_invoices` and `payment_reviews` were queryable (six players at test time). The temporary database and runner were deleted. Service `zombo-backup` remains scheduled daily at 03:00 UTC; check its Railway deploy logs for successful subsequent runs.

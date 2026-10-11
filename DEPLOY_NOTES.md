@@ -9,3 +9,7 @@
 5. После деплоя проверьте авторизацию обычного игрока (403 на `/api/admin/*`), экран администратора, `/ready`, `/start`, `/daily` и один тестовый сценарий без реальных платежей. Не повторяйте оплату Stars без контролируемого тестового плана.
 
 Откат кода: вернуть предыдущий проверенный релиз Railway/GitHub. Добавленные `admin_audit`, `star_invoices`, `payment_reviews`, `expedition_runs` и `expedition_members` можно оставить — старая версия их игнорирует. Восстановление дампа требуется только при повреждении данных и сначала должно быть проверено на отдельной БД. Скрипта, который удаляет старые таблицы, нет. Автоматическое расписание резервных копий здесь не включено. При откате во время 12-часовой экспедиции её состояние останется в БД; обновлённый код сможет завершить её по таймеру после повторного развёртывания.
+
+## ZOMBO 0.10 production security and backup
+
+New additive SQL tables: `api_quotas` (per-player request counters), `telegram_receipts` (Telegram update deduplication and leases). No existing player or billing column changed. All 63 local tests passed. New backup worker in `ops/backup/` uses Docker `postgres:18-alpine`, private Railway Bucket, and cron `0 3 * * *` UTC. In the existing Railway production project, a 70 872-byte backup was uploaded and restored in a temporary PostgreSQL service successfully on 2026-10-11. Temporary services were removed. Cron logs and bucket retention should be monitored each day. `ADMIN_IDS` still needs owner Telegram ID to allow GM access.
