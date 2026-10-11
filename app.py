@@ -175,8 +175,8 @@ def ready(p):
     if p.cooldown and aware(p.cooldown)>now():raise ValueError('Персонаж восстанавливается после смерти')
 
 from raids import install_raids
-from gear import install_gear, create_gear, GearItem, BASE_GEAR
-from story import install_story, StoryProgress, CHAPTERS, gear_stats
+from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats
+from story import install_story, StoryProgress, CHAPTERS
 install_raids(app, with_player, ready)
 install_gear(app, with_player, ready)
 install_story(app, with_player, ready)
