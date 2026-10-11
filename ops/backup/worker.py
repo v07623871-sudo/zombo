@@ -54,7 +54,8 @@ def run():
     client = boto3.client('s3', endpoint_url=os.environ['S3_ENDPOINT'],
         region_name=os.environ['S3_REGION'], aws_access_key_id=os.environ['S3_ACCESS_KEY_ID'],
         aws_secret_access_key=os.environ['S3_SECRET_ACCESS_KEY'],
-        config=Config(s3={'addressing_style':'path'}, retries={'max_attempts':3,'mode':'standard'}))
+        config=Config(s3={'addressing_style':os.getenv('S3_ADDRESSING_STYLE','virtual')},
+                      retries={'max_attempts':3,'mode':'standard'}))
     bucket = os.environ['S3_BUCKET']
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     key = f'{PREFIX}{stamp}.dump'
