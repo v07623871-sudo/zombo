@@ -73,12 +73,13 @@ async def _war_clock_loop():
 def _war_clock_tick():
     with SessionLocal.begin() as session:
         refresh_world(session)
+        expire_sales(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.7.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.8.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.7.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.8.0'}
 
 @app.get('/')
 def home():return FileResponse(os.path.join(os.path.dirname(__file__),'static','index.html'))
@@ -177,9 +178,11 @@ def ready(p):
 from raids import install_raids
 from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats
 from story import install_story, StoryProgress, CHAPTERS
+from gear_market import install_gear_market, expire_sales
 install_raids(app, with_player, ready)
 install_gear(app, with_player, ready)
 install_story(app, with_player, ready)
+install_gear_market(app, with_player, ready)
 
 @app.post('/api/stat')
 def upgrade_stat(body:Choice,request:Request,db:Session=Depends(db_session)):

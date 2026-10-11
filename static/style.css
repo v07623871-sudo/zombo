@@ -225,3 +225,25 @@
 .story-chapter-list{display:grid;gap:7px;margin:12px 0 20px}.story-chapter{display:flex;gap:15px;align-items:center;padding:12px 15px;border:1px solid #303c36;background:#171f1b;border-radius:10px;opacity:.55}.story-chapter-number{font:700 25px Oswald,sans-serif;color:#7a887c}.story-chapter>div{flex:1;min-width:0}.story-chapter strong{display:block;font-size:14px;color:#d1d7ce}.story-chapter small{display:block;font-size:9px;letter-spacing:1px;color:#99a59a;margin-top:4px}.story-chapter-dot{color:#9daaa0}.story-chapter-current{opacity:1;border-color:#a98d60;background:#2a271f}.story-chapter-current .story-chapter-number,.story-chapter-current .story-chapter-dot{color:#e6bf83}.story-chapter-done{opacity:1;border-color:#4b6453}.story-chapter-done .story-chapter-number,.story-chapter-done .story-chapter-dot{color:#98c1a1}
 .story-history{display:grid;gap:8px;margin-bottom:22px}.story-history>div{display:flex;flex-direction:column;padding:12px 15px;background:#181f1d;border-left:3px solid #ac8d59;border-radius:7px}.story-history span{font-size:10px;letter-spacing:1.4px;color:#c7aa7a}.story-history strong{margin-top:5px;font-size:14px}.story-history small{margin-top:4px;color:#a4b1a8}.story-locked{padding:22px;border:1px dashed #766546;border-radius:12px;background:#24231e;margin:15px 0}.story-locked strong{color:#ebce98}.story-locked p{color:#b9c2b7;line-height:1.6}.story-ending{border-color:#aa8c57;text-align:center;background:radial-gradient(ellipse at top,#473725,#161d19 70%);padding:34px 22px}.story-ending-seal{border-top:1px solid #5d5041;margin-top:23px;padding-top:19px;letter-spacing:2px;color:#d4ad77;font-size:10px}
 @media (max-width:400px){.story-case,.story-scene{padding:16px}.story-hero{padding:23px 17px}.story-decision{padding:12px 10px}.story-act-step small{font-size:8px}}
+
+/* ZOMBO 0.8: Unique equipment exchange */
+.gm-hero{padding:25px 23px;background:linear-gradient(135deg,#201e20,#131a20 60%,#2c2721);border:1px solid #64523d;border-radius:16px;margin-bottom:20px;box-shadow:0 16px 38px #0005}
+.gm-hero h1{font:700 clamp(30px,8vw,48px)/1.02 Oswald,Impact,sans-serif;margin:13px 0;color:#f0eeec;letter-spacing:.025em}
+.gm-hero h1 span{color:#e4bc78}.gm-hero>p{font-size:13px;color:#b8b3aa;line-height:1.6;margin:9px 0 18px}
+.gm-numbers{display:flex;gap:12px;flex-wrap:wrap;border-top:1px solid #8d78503b;padding-top:16px}
+.gm-numbers>span{color:#d6c7aa;font-size:11px;background:#f4e0ad0c;border:1px solid #a5905a34;padding:8px;border-radius:7px}
+.gm-tabs{display:flex;background:#171b1e;border:1px solid #35383b;border-radius:9px;padding:5px;margin:16px 0;gap:6px}
+.gm-tabs button{flex:1;border:0;background:none;color:#aaa;font:600 12px Oswald,sans-serif;letter-spacing:.08em;padding:13px 6px;border-radius:6px;cursor:pointer}
+.gm-tabs button.active{background:#c5a36c;color:#201b16}
+.gm-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0 16px}
+.gm-tools strong{display:block;font-size:15px}.gm-tools small{display:block;color:#959da2;font-size:11px;margin-top:5px}
+.gm-list{display:grid;gap:13px}.gm-card{border:1px solid #3e4245;border-left:3px solid var(--grade,#d2ae73);border-radius:12px;background:#1c2226;padding:15px}
+.gm-card-head{display:flex;gap:13px;align-items:center}.gm-art{width:55px;min-width:55px;height:62px;display:grid;place-items:center;font-size:32px;border:1px solid #ffffff16;border-radius:10px;background:radial-gradient(circle,#ffffff11,#05060722)}
+.gm-main{min-width:0}.gm-rarity{color:var(--grade,#d2ae73);font-size:10px;letter-spacing:.06em}.gm-main h3{margin:6px 0 4px;font:600 20px Oswald,sans-serif;color:#e9e7e2}.gm-main h3 em{font-style:normal;color:#d8b876}.gm-main p{margin:0;color:#aab1b4;font-size:12px;line-height:1.5}
+.gm-card-bottom{border-top:1px solid #ffffff14;margin-top:13px;padding-top:13px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.gm-card-bottom small{display:block;color:#9e9e97;font-size:10px}.gm-card-bottom strong{font:600 22px Oswald,sans-serif;color:#e6c28a}
+.gm-until{color:#838a8d;font-size:10px;margin-top:10px}.gm-my-sale{background:#191f23;border:1px solid #303b40;border-radius:10px;padding:14px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.gm-my-sale h3{font:600 16px Oswald,sans-serif;margin:6px 0}.gm-my-sale small{font-size:11px;color:#9ea8ac}.gm-status{font:600 10px Oswald,sans-serif;letter-spacing:.08em;color:#b3b5b6}.gm-status.active{color:#e2c07e}.gm-status.sold{color:#a9c4ce}.gm-status.cancelled,.gm-status.expired{color:#b09e91}
+.gm-page{display:flex;justify-content:space-between;align-items:center;gap:7px;margin:16px 0}.gm-page span{color:#abb3b7;font-size:12px}.gm-empty{text-align:center;padding:27px 13px;color:#acb2b4;font-size:13px}
+.gm-help{margin:20px 0;font-size:12px;line-height:1.65;color:#a5acb0}.gm-help strong{color:#e8d3ae;font-size:14px}.gm-help p{margin:8px 0 0}
+@media(max-width:360px){.gm-tools{align-items:flex-start}.gm-hero{padding:18px}.gm-card{padding:11px}.gm-art{min-width:44px;width:44px;height:50px;font-size:25px}}
