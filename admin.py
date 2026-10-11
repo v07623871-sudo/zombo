@@ -238,7 +238,7 @@ def install_admin(app, identify, admin_ids):
             # CSV values are opened as spreadsheet cells; neutralize formulas,
             # including fields beginning with leading whitespace.
             raw = str(value if value is not None else '')
-            if raw.lstrip(' \\t\\r\\n').startswith(('=', '+', '-', '@')):
+            if raw.lstrip(' \t\r\n').startswith(('=', '+', '-', '@')):
                 return "'" + raw
             return raw
 
@@ -247,7 +247,7 @@ def install_admin(app, identify, admin_ids):
                             (log.id, log.created_at.isoformat(), log.actor_id,
                              log.target_id, log.action, log.field, log.before,
                              log.after, log.reason)])
-        data = '\\ufeff' + output.getvalue()
+        data = '\ufeff' + output.getvalue()
         return Response(content=data, media_type='text/csv; charset=utf-8',
                         headers={'Content-Disposition': 'attachment; filename="zombo-admin-audit.csv"',
                                  'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'})
