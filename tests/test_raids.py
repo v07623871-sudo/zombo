@@ -4,6 +4,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from models import SessionLocal, Player
 from raids import RaidRun, RaidMember, RAIDS
+from datetime import timedelta
+from models import now
 
 A={'Authorization':'demo:82001'}
 B={'Authorization':'demo:82002'}
@@ -72,3 +74,22 @@ def test_raid_bad_authorization():
     with TestClient(app) as c:
         assert c.get('/api/raids').status_code==401
         assert c.post('/api/raids/create',json={'key':'outpost'}).status_code==401
+
+
+def test_expired_action_persists_terminal_status():
+    ids = [82901, 82902, 82903]
+    with TestClient(app) as client:
+        for pid in ids:
+            assert client.post('/api/class', headers={'Authorization':f'demo:{pid}'}, json={'key':'medic'}).status_code == 200
+        owner = {'Authorization':f'demo:{ids[0]}'}
+        run = client.post('/api/raids/create', headers=owner, json={'key':'outpost'}).json()['id']
+        for pid in ids[1:]:
+            assert client.post('/api/raids/join', headers={'Authorization':f'demo:{pid}'}, json={'id':run}).status_code == 200
+        assert client.post('/api/raids/launch', headers=owner, json={'id':run}).status_code == 200
+        with SessionLocal.begin() as db:
+            db.get(RaidRun, run).expires_at = now() - timedelta(seconds=1)
+        response = client.post('/api/raids/act', headers=owner, json={'id':run,'action':'attack'})
+        assert response.status_code == 200
+        assert response.json()['raid']['status'] == 'expired'
+        with SessionLocal() as db:
+            assert db.get(RaidRun, run).status == 'expired'

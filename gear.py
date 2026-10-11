@@ -177,7 +177,7 @@ def dismantle_gear(db:Session,player_id,item_id):
 
 def install_gear(app,with_player,ready):
     router=APIRouter(prefix='/api/gear',tags=['Gear'])
-    class IdBody(BaseModel):id:int=Field(gt=0)
+    class IdBody(BaseModel):id:int=Field(gt=0,le=9223372036854775807)
     def session():
         db=SessionLocal()
         try:yield db

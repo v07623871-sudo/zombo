@@ -167,15 +167,15 @@ def browse_sales(db: Session, player_id: int, page: int = 1) -> dict:
 
 
 class SellBody(BaseModel):
-    gear_id: int = Field(gt=0)
+    gear_id: int = Field(gt=0, le=9223372036854775807)
     price: int = Field(ge=MIN_PRICE, le=MAX_PRICE)
 
 
 class SaleId(BaseModel):
-    id: int = Field(gt=0)
+    id: int = Field(gt=0, le=9223372036854775807)
 
 
-def install_gear_market(app, with_player, ready):
+def install_gear_market(app, with_player, ready, identify_user=None):
     router = APIRouter(prefix='/api/gear-market', tags=['Gear Market'])
 
     def session():
@@ -203,6 +203,14 @@ def install_gear_market(app, with_player, ready):
     @router.post('/buy')
     def buy(body: SaleId, request: Request, db: Session = Depends(session)):
         with db.begin():
+            if identify_user is not None:
+                buyer_id=int(identify_user(request.headers.get('authorization',''))['id'])
+                seller_id=db.scalar(select(GearSale.seller_id).where(GearSale.id==body.id))
+                if seller_id is not None:
+                    # Lock both wallets before the sale/item rows. Reciprocal
+                    # purchases otherwise lock buyer A then seller B in reverse.
+                    list(db.scalars(select(Player).where(Player.id.in_([buyer_id,seller_id]))
+                                    .order_by(Player.id).with_for_update()))
             player = with_player(request, db)
             ready(player)
             sale, item = buy_gear(db, player, body.id)

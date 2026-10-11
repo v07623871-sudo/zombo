@@ -1,0 +1,240 @@
+"""Authenticated admin API. Every mutation is audited in the same DB transaction."""
+from uuid import UUID
+from datetime import timedelta
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, func, or_, select
+from sqlalchemy.orm import Session
+
+from models import (Base, SessionLocal, Player, ItemStack, Clan, Battle, MarketLot,
+                    PvPMatch, Payment, PaymentReview, TerritoryWar, now)
+from gear import GearItem, gear_view
+from gear_market import GearSale
+from raids import RaidRun, RaidMember
+from story import StoryProgress
+from game import ITEMS, gain_xp, give_item, item_count, take_item
+
+
+class AdminAudit(Base):
+    __tablename__ = 'admin_audit'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    request_id = Column(String(36), nullable=False, unique=True)
+    actor_id = Column(BigInteger, nullable=False, index=True)
+    target_id = Column(BigInteger, ForeignKey('players.id'), nullable=False, index=True)
+    action = Column(String(24), nullable=False)
+    field = Column(String(60), nullable=False)
+    before = Column(String(40), nullable=False)
+    after = Column(String(40), nullable=False)
+    reason = Column(String(300), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+
+
+class StatusChange(BaseModel):
+    field: str = Field(pattern=r'^(banned|frozen)$')
+    value: bool
+    reason: str = Field(min_length=5, max_length=300)
+    request_id: UUID
+
+
+class ResourceChange(BaseModel):
+    field: str = Field(pattern=r'^(caps|xp|material)$')
+    item_key: str | None = Field(default=None, max_length=55)
+    amount: int = Field(ge=-100000, le=100000)
+    reason: str = Field(min_length=5, max_length=300)
+    request_id: UUID
+
+
+def install_admin(app, identify, admin_ids):
+    router = APIRouter(prefix='/api/admin', tags=['Admin'])
+
+    def session():
+        with SessionLocal() as db:
+            yield db
+
+    def actor(request: Request, db: Session) -> Player:
+        pid = int(identify(request.headers.get('authorization', ''))['id'])
+        if pid not in admin_ids:
+            raise HTTPException(403, 'Только администратор')
+        user = db.get(Player, pid)
+        if not user or user.banned or user.frozen:
+            raise HTTPException(403, 'Учётная запись администратора недоступна')
+        return user
+
+    def target(db: Session, pid: int) -> Player:
+        if not 0 < pid <= 9223372036854775807:
+            raise HTTPException(422, 'Неверный ID игрока')
+        player = db.scalar(select(Player).where(Player.id == pid).with_for_update())
+        if not player:
+            raise HTTPException(404, 'Игрок не найден')
+        return player
+
+    def prior(db: Session, uid: UUID):
+        log = db.scalar(select(AdminAudit).where(AdminAudit.request_id == str(uid)))
+        if log:
+            return {'message': 'Операция уже выполнена', 'audit_id': log.id,
+                    'before': log.before, 'after': log.after, 'replayed': True}
+        return None
+
+    def log_change(db, uid, admin, player, action, field, before, after, reason):
+        log = AdminAudit(request_id=str(uid), actor_id=admin.id, target_id=player.id,
+                         action=action, field=field, before=str(before), after=str(after), reason=reason.strip())
+        db.add(log)
+        db.flush()
+        return {'message': 'Изменение сохранено в журнале', 'audit_id': log.id,
+                'before': log.before, 'after': log.after, 'replayed': False}
+
+    @router.get('/access')
+    def access(request: Request, db: Session = Depends(session)):
+        return {'admin': True, 'id': actor(request, db).id}
+
+    @router.get('/summary')
+    def summary(request: Request, db: Session = Depends(session)):
+        actor(request, db)
+        count = lambda model: db.scalar(select(func.count()).select_from(model)) or 0
+        return {
+            'players': count(Player), 'active_7d': db.scalar(select(func.count()).select_from(Player).where(Player.last_tick >= now() - timedelta(days=7))) or 0,
+            'zombie_kills': db.scalar(select(func.coalesce(func.sum(Player.kills), 0))) or 0,
+            'pvp_matches': count(PvPMatch), 'raids': count(RaidRun),
+            'wars': count(TerritoryWar), 'clans': count(Clan),
+            'barter_active': db.scalar(select(func.count()).select_from(MarketLot).where(MarketLot.active.is_(True))) or 0,
+            'gear_sales': count(GearSale), 'gear_sold': db.scalar(select(func.count()).select_from(GearSale).where(GearSale.status == 'sold')) or 0,
+            'payments': count(Payment), 'stars_received': db.scalar(select(func.coalesce(func.sum(Payment.stars), 0))) or 0,
+            'payments_for_review': count(PaymentReview),
+            'caps_in_wallets': db.scalar(select(func.coalesce(func.sum(Player.caps), 0))) or 0,
+            'zombo_in_wallets': db.scalar(select(func.coalesce(func.sum(Player.zombo), 0))) or 0,
+        }
+
+    @router.get('/players')
+    def players(request: Request, q: str = '', hero_class: str = '', min_level: int = 1,
+                page: int = 1, db: Session = Depends(session)):
+        actor(request, db)
+        page = max(1, min(500, page))
+        query = select(Player).where(Player.level >= max(1, min(1000, min_level)))
+        if hero_class:
+            query = query.where(Player.hero_class == hero_class)
+        q = q.strip()[:90]
+        if q:
+            if q.isdigit() and int(q) <= 9223372036854775807:
+                query = query.where(or_(Player.id == int(q), Player.name.ilike(f'%{q}%'), Player.username.ilike(f'%{q}%')))
+            else:
+                query = query.where(or_(Player.name.ilike(f'%{q}%'), Player.username.ilike(f'%{q}%')))
+        rows = db.scalars(query.order_by(Player.id.desc()).offset((page - 1) * 20).limit(21)).all()
+        return {'page': page, 'has_next': len(rows) > 20,
+                'items': [{'id': p.id, 'name': p.name, 'username': p.username, 'class': p.hero_class,
+                           'level': p.level, 'caps': p.caps, 'banned': p.banned, 'frozen': p.frozen}
+                          for p in rows[:20]]}
+
+    @router.get('/players/{pid}')
+    def player_detail(pid: int, request: Request, db: Session = Depends(session)):
+        actor(request, db)
+        if not 0 < pid <= 9223372036854775807:
+            raise HTTPException(422, 'Неверный ID игрока')
+        p = db.get(Player, pid)
+        if not p:
+            raise HTTPException(404, 'Игрок не найден')
+        clan = db.get(Clan, p.clan_id) if p.clan_id else None
+        gear = db.scalars(select(GearItem).where(GearItem.player_id == pid).order_by(GearItem.id).limit(100)).all()
+        stacks = db.scalars(select(ItemStack).where(ItemStack.player_id == pid, ItemStack.quantity > 0).order_by(ItemStack.item_key)).all()
+        story = db.get(StoryProgress, pid)
+        return {'id': p.id, 'name': p.name, 'username': p.username, 'class': p.hero_class,
+                'level': p.level, 'xp': p.xp, 'caps': p.caps, 'zombo': p.zombo,
+                'hp': p.hp, 'stamina': p.stamina, 'kills': p.kills, 'rating': p.rating,
+                'karma': p.karma, 'banned': p.banned, 'frozen': p.frozen,
+                'clan': clan.name if clan else None, 'location': p.location,
+                'story_chapter': story.chapter if story else 0,
+                'gear': [gear_view(item) for item in gear],
+                'inventory': [{'key': i.item_key, 'quantity': i.quantity, 'equipped': i.equipped} for i in stacks]}
+
+    @router.post('/players/{pid}/status')
+    def change_status(pid: int, body: StatusChange, request: Request, db: Session = Depends(session)):
+        with db.begin():
+            admin = actor(request, db)
+            if len(body.reason.strip()) < 5:
+                raise HTTPException(422, 'Укажи содержательную причину')
+            p = target(db, pid)
+            existing = prior(db, body.request_id)
+            if existing:
+                return existing
+            if body.value and p.id in admin_ids:
+                active = db.scalar(select(func.count()).select_from(Player).where(
+                    Player.id.in_(admin_ids), Player.banned.is_(False), Player.frozen.is_(False))) or 0
+                if active <= 1:
+                    raise HTTPException(409, 'Нельзя заблокировать последнего администратора')
+            old = bool(getattr(p, body.field))
+            if old == body.value:
+                raise HTTPException(409, 'Статус уже установлен')
+            setattr(p, body.field, body.value)
+            return log_change(db, body.request_id, admin, p, 'moderation', body.field,
+                              int(old), int(body.value), body.reason)
+
+    @router.post('/players/{pid}/resources')
+    def change_resources(pid: int, body: ResourceChange, request: Request, db: Session = Depends(session)):
+        with db.begin():
+            admin = actor(request, db)
+            if len(body.reason.strip()) < 5:
+                raise HTTPException(422, 'Укажи содержательную причину')
+            p = target(db, pid)
+            existing = prior(db, body.request_id)
+            if existing:
+                return existing
+            if body.amount == 0:
+                raise HTTPException(400, 'Количество должно быть ненулевым')
+            if body.field == 'material':
+                key = body.item_key or ''
+                if key not in ITEMS or ITEMS[key].get('type') not in ('material', 'resource'):
+                    raise HTTPException(400, 'Разрешены только материалы')
+                before = item_count(db, pid, key)
+                if before + body.amount < 0 or before + body.amount > 1000000:
+                    raise HTTPException(400, 'Количество вне допустимого диапазона')
+                if body.amount > 0:
+                    give_item(db, pid, key, body.amount)
+                else:
+                    take_item(db, pid, key, -body.amount)
+                after = before + body.amount
+                field = f'material:{key}'
+            elif body.field == 'caps':
+                before = p.caps
+                after = before + body.amount
+                if not 0 <= after <= 2_000_000_000:
+                    raise HTTPException(400, 'Баланс вне допустимого диапазона')
+                p.caps = after
+                field = 'caps'
+            else:
+                if body.amount < 0:
+                    raise HTTPException(400, 'Списание XP запрещено: уровень не пересчитывается назад')
+                before = f'LVL {p.level}, XP {p.xp}'
+                gain_xp(p, body.amount)
+                after = f'LVL {p.level}, XP {p.xp}'
+                field = 'xp'
+            return log_change(db, body.request_id, admin, p, 'resource', field,
+                              before, after, body.reason)
+
+    @router.get('/audit')
+    def audit(request: Request, page: int = 1, db: Session = Depends(session)):
+        actor(request, db)
+        page = max(1, min(500, page))
+        logs = db.scalars(select(AdminAudit).order_by(AdminAudit.id.desc()).offset((page - 1) * 30).limit(31)).all()
+        return {'page': page, 'has_next': len(logs) > 30,
+                'items': [{'id': x.id, 'actor_id': x.actor_id, 'target_id': x.target_id,
+                           'action': x.action, 'field': x.field, 'before': x.before,
+                           'after': x.after, 'reason': x.reason, 'created_at': x.created_at.isoformat()}
+                          for x in logs[:30]]}
+
+    @router.get('/transactions')
+    def transactions(request: Request, db: Session = Depends(session)):
+        actor(request, db)
+        sales = db.scalars(select(GearSale).order_by(GearSale.id.desc()).limit(30)).all()
+        payments = db.scalars(select(Payment).order_by(Payment.created_at.desc()).limit(30)).all()
+        reviews = db.scalars(select(PaymentReview).order_by(PaymentReview.created_at.desc()).limit(30)).all()
+        raids = db.scalars(select(RaidMember).where(RaidMember.rewarded.is_(True)).order_by(RaidMember.id.desc()).limit(30)).all()
+        return {'sales': [{'id': s.id, 'seller_id': s.seller_id, 'buyer_id': s.buyer_id,
+                           'price': s.price, 'fee': s.fee, 'status': s.status} for s in sales],
+                'payments': [{'player_id': p.player_id, 'stars': p.stars, 'zombo': p.zombo,
+                              'created_at': p.created_at.isoformat()} for p in payments],
+                'payment_reviews': [{'charge_id': p.charge_id, 'player_id': p.player_id,
+                                     'currency': p.currency, 'amount': p.amount, 'reason': p.reason,
+                                     'created_at': p.created_at.isoformat()} for p in reviews],
+                'raid_rewards': [{'run_id': r.run_id, 'player_id': r.player_id,
+                                  'contribution': r.contribution} for r in raids]}
+
+    app.include_router(router)

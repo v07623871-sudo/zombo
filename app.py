@@ -7,10 +7,10 @@ from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, or_, and_
+from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.orm import Session
 from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, Clan, Territory,
-                    MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
+                    MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, StarInvoice, PaymentReview, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
 from game import (ENEMIES, CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
                   aware, max_hp, gain_xp, give_item, take_item, item_count, tick, spend_stamina,
                   player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync)
@@ -27,8 +27,11 @@ logger=logging.getLogger('zombo')
 BOT_TOKEN=os.getenv('BOT_TOKEN','')
 PUBLIC_URL=os.getenv('PUBLIC_URL','').rstrip('/')
 SECRET=os.getenv('TELEGRAM_WEBHOOK_SECRET','')
-DEMO=os.getenv('DEMO_MODE','0')=='1'
+# Demo identities are accepted only on a local instance without a configured bot.
+DEMO=(os.getenv('DEMO_MODE','0')=='1' and not BOT_TOKEN and
+      (not PUBLIC_URL or re.match(r'^https?://(localhost|127\.0\.0\.1)(:\d+)?$', PUBLIC_URL) is not None))
 ADMIN_IDS={int(x) for x in os.getenv('ADMIN_IDS','').split(',') if x.strip().isdigit()}
+ACCEPT_LEGACY_STAR_INVOICES=os.getenv('ACCEPT_LEGACY_STAR_INVOICES','1')=='1'
 
 async def telegram_api(method, payload):
     if not BOT_TOKEN: return {'ok':False,'error':'no token'}
@@ -37,8 +40,8 @@ async def telegram_api(method, payload):
             r=await client.post(f'https://api.telegram.org/bot{BOT_TOKEN}/{method}',json=payload)
             if r.status_code>=400:logger.error('Telegram %s error %s',method,r.status_code)
             return r.json()
-    except Exception:
-        logger.exception('Telegram request failed')
+    except Exception as exc:
+        logger.error('Telegram %s transport error: %s',method,type(exc).__name__)
         return {'ok':False}
 
 @asynccontextmanager
@@ -75,11 +78,20 @@ def _war_clock_tick():
         refresh_world(session)
         expire_sales(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.8.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.9.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.8.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.9.0'}
+
+@app.get('/ready')
+def readiness():
+    try:
+        with SessionLocal() as db:
+            db.execute(text('SELECT 1'))
+    except Exception:
+        raise HTTPException(503,'Database unavailable')
+    return {'status':'ready'}
 
 @app.get('/')
 def home():return FileResponse(os.path.join(os.path.dirname(__file__),'static','index.html'))
@@ -99,7 +111,8 @@ def identify(header):
     if not header:raise HTTPException(401,'Открой игру через Telegram')
     if DEMO and header.startswith('demo:'):
         raw=header[5:]
-        if not raw.isdigit():raise HTTPException(401,'Неверный тестовый ID')
+        if not raw.isdigit() or not 0<int(raw)<=9223372036854775807:
+            raise HTTPException(401,'Неверный тестовый ID')
         return {'id':int(raw),'first_name':'Исследователь','username':'demo'}
     if not header.startswith('tma '):raise HTTPException(401,'Необходимо открыть Mini App в Telegram')
     if not BOT_TOKEN:raise HTTPException(503,'Бот ещё не настроен')
@@ -157,7 +170,7 @@ def config():return {'enemies':ENEMIES,'classes':CLASSES,'skills':SKILLS,'skill_
 def me(request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db)
-        return player_view(db,p)
+        return {**player_view(db,p), 'admin': p.id in ADMIN_IDS}
 
 class Choice(BaseModel):
     key: str = Field(min_length=1,max_length=55)
@@ -176,13 +189,17 @@ def ready(p):
     if p.cooldown and aware(p.cooldown)>now():raise ValueError('Персонаж восстанавливается после смерти')
 
 from raids import install_raids
+from expeditions import install_expeditions
 from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats
 from story import install_story, StoryProgress, CHAPTERS
 from gear_market import install_gear_market, expire_sales
+from admin import install_admin
 install_raids(app, with_player, ready)
+install_expeditions(app, with_player, ready)
 install_gear(app, with_player, ready)
 install_story(app, with_player, ready)
-install_gear_market(app, with_player, ready)
+install_gear_market(app, with_player, ready, identify)
+install_admin(app, identify, ADMIN_IDS)
 
 @app.post('/api/stat')
 def upgrade_stat(body:Choice,request:Request,db:Session=Depends(db_session)):
@@ -426,7 +443,7 @@ def clan_create(body:ClanCreate,request:Request,db:Session=Depends(db_session)):
         c=Clan(name=name,leader_id=p.id);db.add(c);db.flush();p.clan_id=c.id
         return {'message':f'Клан «{name}» основан!', 'id':c.id}
 
-class IdBody(BaseModel):id:int=Field(gt=0)
+class IdBody(BaseModel):id:int=Field(gt=0,le=9223372036854775807)
 
 @app.post('/api/clans/join')
 def clan_join(body:IdBody,request:Request,db:Session=Depends(db_session)):
@@ -515,7 +532,7 @@ def territory_bid(body:TerritoryBid,request:Request,db:Session=Depends(db_sessio
         return {'message':f'Ставка {w.bid} крышек принята. Торги завершатся в полночь перед КВ.'}
 
 class PlayerIdForWar(BaseModel):
-    player_id:int=Field(gt=0)
+    player_id:int=Field(gt=0,le=9223372036854775807)
 
 @app.post('/api/clans/warlord')
 def make_warlord(body:PlayerIdForWar,request:Request,db:Session=Depends(db_session)):
@@ -525,8 +542,8 @@ def make_warlord(body:PlayerIdForWar,request:Request,db:Session=Depends(db_sessi
         return {'message':f'{target.name} назначена воеводой клана.'}
 
 class WarRosterBody(BaseModel):
-    war_id:int=Field(gt=0)
-    player_id:int=Field(gt=0)
+    war_id:int=Field(gt=0,le=9223372036854775807)
+    player_id:int=Field(gt=0,le=9223372036854775807)
     include:bool=True
 
 @app.post('/api/territories/roster')
@@ -537,7 +554,7 @@ def war_roster(body:WarRosterBody,request:Request,db:Session=Depends(db_session)
         return {'message':'Боец зачислен в отряд' if body.include else 'Боец снят с КВ'}
 
 class WarActBody(BaseModel):
-    war_id:int=Field(gt=0)
+    war_id:int=Field(gt=0,le=9223372036854775807)
     action:str=Field(max_length=12)
 
 @app.post('/api/territories/act')
@@ -601,7 +618,8 @@ def pvp_list(request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db)
         match=db.scalar(select(PvPMatch).where(or_(PvPMatch.challenger_id==p.id,PvPMatch.defender_id==p.id),PvPMatch.state.in_(['pending','active'])).order_by(PvPMatch.id.desc()))
-        top=db.scalars(select(Player).where(Player.id!=p.id,Player.hero_class.isnot(None)).order_by(Player.rating.desc()).limit(20)).all()
+        top=db.scalars(select(Player).where(Player.id!=p.id,Player.hero_class.isnot(None),
+                           Player.banned.is_(False),Player.frozen.is_(False)).order_by(Player.rating.desc()).limit(20)).all()
         return {'match':pvp_view(db,match) if match else None,'players':[{'id':x.id,'name':x.name,'level':x.level,'rating':x.rating} for x in top]}
 
 def pvp_view(db,m):
@@ -610,15 +628,20 @@ def pvp_view(db,m):
     return {'id':m.id,'state':m.state,'challenger':{'id':m.challenger_id,'name':names.get(m.challenger_id,'Игрок'),'hp':m.hp_a},
             'defender':{'id':m.defender_id,'name':names.get(m.defender_id,'Игрок'),'hp':m.hp_b},'current_id':m.current_id,'log':m.log[-8:], 'updated_at':aware(m.updated_at).isoformat()}
 
-class PlayerId(BaseModel):player_id:int=Field(gt=0)
+class PlayerId(BaseModel):player_id:int=Field(gt=0,le=9223372036854775807)
 
 @app.post('/api/pvp/challenge')
 def pvp_challenge(body:PlayerId,request:Request,db:Session=Depends(db_session)):
     with db.begin():
+        pid=int(identify(request.headers.get('authorization',''))['id'])
+        if body.player_id==pid:raise ValueError('Нельзя вызвать себя')
+        # Lock both accounts in ID order before testing active matches. This
+        # serializes competing challenges for the same defender on PostgreSQL.
+        locked={x.id:x for x in db.scalars(select(Player).where(Player.id.in_([pid,body.player_id]))
+                                        .order_by(Player.id).with_for_update())}
         p=with_player(request,db);ready(p)
-        if body.player_id==p.id:raise ValueError('Нельзя вызвать себя')
-        other=db.get(Player,body.player_id)
-        if not other or not other.hero_class:raise ValueError('Игрок не найден')
+        other=locked.get(body.player_id)
+        if not other or not other.hero_class or other.banned or other.frozen:raise ValueError('Игрок недоступен')
         pending=db.scalar(select(PvPMatch).where(or_(PvPMatch.challenger_id.in_([p.id,other.id]),PvPMatch.defender_id.in_([p.id,other.id])),PvPMatch.state.in_(['pending','active'])))
         if pending:raise ValueError('Один из игроков уже участвует в дуэли')
         spend_stamina(p,10)
@@ -626,14 +649,19 @@ def pvp_challenge(body:PlayerId,request:Request,db:Session=Depends(db_session)):
         db.add(m)
         return {'message':'Вызов отправлен. Соперник увидит его на арене'}
 
-class PvPDecision(BaseModel):id:int=Field(gt=0);action:str=Field(max_length=20)
+class PvPDecision(BaseModel):id:int=Field(gt=0,le=9223372036854775807);action:str=Field(max_length=20)
 
 @app.post('/api/pvp/act')
 def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
     with db.begin():
-        p=with_player(request,db);ready(p)
+        pid=int(identify(request.headers.get('authorization',''))['id'])
         m=db.scalar(select(PvPMatch).where(PvPMatch.id==body.id).with_for_update())
-        if not m or p.id not in (m.challenger_id,m.defender_id):raise ValueError('Нет такой дуэли')
+        if not m or pid not in (m.challenger_id,m.defender_id):raise ValueError('Нет такой дуэли')
+        # Match first, then both participants in stable order. The loser and
+        # winner balances are both protected before a result is calculated.
+        list(db.scalars(select(Player).where(Player.id.in_([m.challenger_id,m.defender_id]))
+                        .order_by(Player.id).with_for_update()))
+        p=with_player(request,db);ready(p)
         if m.state=='pending':
             if body.action=='cancel' and p.id==m.challenger_id:m.state='cancelled';return {'message':'Вызов отозван'}
             if body.action not in ('accept','decline') or p.id!=m.defender_id:raise ValueError('Ожидается решение соперника')
@@ -641,7 +669,11 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
             m.state='active';m.current_id=m.challenger_id;m.updated_at=now()
             return {'message':'Дуэль началась! Первый ход за инициатором'}
         if m.state!='active':raise ValueError('Дуэль завершена')
-        if body.action=='surrender':
+        if body.action=='claim_timeout':
+            if m.current_id==p.id or now()-aware(m.updated_at)<=timedelta(minutes=5):
+                raise ValueError('Время хода соперника ещё не вышло')
+            winner_id=p.id
+        elif body.action=='surrender':
             winner_id=m.defender_id if p.id==m.challenger_id else m.challenger_id
         else:
             if m.current_id!=p.id:raise ValueError('Сейчас ход соперника')
@@ -720,29 +752,51 @@ def premium_buy(body:Choice,request:Request,db:Session=Depends(db_session)):
 @app.get('/api/stars')
 def stars_offers():return [{'key':k,'stars':s,'zombo':z} for k,(s,z) in STAR_OFFERS.items()]
 
+def invoice_offer(db, payload, payer_id, currency, amount, *, checkout=False):
+    """Resolve an issued invoice to its fixed reward without trusting update fields."""
+    if currency!='XTR' or not isinstance(amount,int):return None
+    if isinstance(payload,str) and payload.startswith('z1:'):
+        invoice=db.get(StarInvoice,payload)
+        if not invoice or invoice.player_id!=payer_id or invoice.stars!=amount:return None
+        if checkout and aware(invoice.expires_at)<=now():return None
+        return invoice.player_id,invoice.stars,invoice.zombo
+    # In-flight links from 0.8.0 must remain redeemable during the rollout.
+    if ACCEPT_LEGACY_STAR_INVOICES and isinstance(payload,str):
+        match=re.fullmatch(r'(\d+):([a-z][a-z0-9_]{0,54}):([0-9a-f]{20})',payload)
+        if match:
+            pid,key,_=match.groups()
+            offer=STAR_OFFERS.get(key)
+            if int(pid)==payer_id and offer and offer[0]==amount:
+                return int(pid),offer[0],offer[1]
+    return None
+
 @app.post('/api/stars/invoice')
 async def invoice(body:Choice,request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db);ready(p)
         if body.key not in STAR_OFFERS:raise ValueError('Нет такого набора')
         stars,zombo=STAR_OFFERS[body.key]
-        # Signed payload binds the invoice to the buyer and exact product.
-        payload=f'{p.id}:{body.key}:{secrets.token_hex(10)}'
-        result=await telegram_api('createInvoiceLink',{'title':f'{zombo} Zombo','description':'Премиум-валюта для ZOMBO',
-            'payload':payload,'currency':'XTR','prices':[{'label':f'{zombo} Zombo','amount':stars}]})
-        if not result.get('ok'):raise HTTPException(502,'Не удалось сформировать счёт Telegram Stars')
-        return {'url':result['result']}
+        payload='z1:'+secrets.token_urlsafe(24)
+        db.add(StarInvoice(payload=payload,player_id=p.id,offer_key=body.key,stars=stars,zombo=zombo,
+                           expires_at=now()+timedelta(hours=24)))
+    # Do not hold a player row lock while waiting for Telegram's network API.
+    result=await telegram_api('createInvoiceLink',{'title':f'{zombo} Zombo','description':'Премиум-валюта для ZOMBO',
+        'payload':payload,'currency':'XTR','prices':[{'label':f'{zombo} Zombo','amount':stars}]})
+    if not result.get('ok') or not result.get('result'):
+        raise HTTPException(502,'Не удалось сформировать счёт Telegram Stars')
+    return {'url':result['result']}
 
 @app.post('/telegram/webhook')
 async def webhook(request:Request):
-    if not SECRET or request.headers.get('x-telegram-bot-api-secret-token')!=SECRET:raise HTTPException(403,'Forbidden')
+    if not SECRET or not hmac.compare_digest(request.headers.get('x-telegram-bot-api-secret-token',''),SECRET):
+        raise HTTPException(403,'Forbidden')
     data=await request.json()
     if 'pre_checkout_query' in data:
         q=data['pre_checkout_query'];valid=False
         try:
-            pid,key,_=q['invoice_payload'].split(':',2)
-            valid=(int(pid)==q['from']['id'] and key in STAR_OFFERS and q['currency']=='XTR' and STAR_OFFERS[key][0]==q['total_amount'])
-        except (ValueError,KeyError):pass
+            with SessionLocal() as db:
+                valid=invoice_offer(db,q['invoice_payload'],q['from']['id'],q['currency'],q['total_amount'],checkout=True) is not None
+        except (ValueError,KeyError,TypeError):pass
         await telegram_api('answerPreCheckoutQuery',{'pre_checkout_query_id':q['id'],'ok':valid,'error_message':'Ошибка данных заказа' if not valid else None})
     msg=data.get('message')
     if not msg:return {'ok':True}
@@ -750,25 +804,38 @@ async def webhook(request:Request):
     if not chat_id or not user:return {'ok':True}
     if 'successful_payment' in msg:
         payment=msg['successful_payment']
+        credited=False
         try:
-            pid,key,_=payment['invoice_payload'].split(':',2)
-            if int(pid)==user['id'] and payment['currency']=='XTR' and key in STAR_OFFERS and payment['total_amount']==STAR_OFFERS[key][0]:
+            with SessionLocal.begin() as db:
+                offer=invoice_offer(db,payment['invoice_payload'],user['id'],payment['currency'],payment['total_amount'])
                 charge_id=payment['telegram_payment_charge_id']
-                with SessionLocal.begin() as db:
+                if offer:
+                    pid,stars,zombo=offer
+                    p=db.scalar(select(Player).where(Player.id==pid).with_for_update())
+                    if not p:raise ValueError('Payment recipient missing')
                     if not db.get(Payment,charge_id):
-                        p=db.get(Player,int(pid))
-                        if p:
-                            p.zombo+=STAR_OFFERS[key][1]
-                            db.add(Payment(id=charge_id,player_id=p.id,stars=payment['total_amount'],zombo=STAR_OFFERS[key][1]))
+                        p.zombo+=zombo
+                        db.add(Payment(id=charge_id,player_id=p.id,stars=stars,zombo=zombo))
+                        credited=True
+                elif not db.get(PaymentReview,charge_id):
+                    db.add(PaymentReview(charge_id=charge_id,player_id=int(user['id']),
+                                         payload=str(payment['invoice_payload'])[:128],
+                                         currency=str(payment['currency'])[:8],amount=int(payment['total_amount']),
+                                         reason='invoice_not_verified'))
+                    logger.warning('Stars payment requires review: payer=%s',user['id'])
+            if credited:
                 await telegram_api('sendMessage',{'chat_id':chat_id,'text':'💎 Покупка успешно зачислена! Открой ZOMBO и проверь баланс.'})
-        except Exception:logger.exception('payment processing error')
+        except Exception:
+            logger.exception('payment processing error')
+            raise HTTPException(503,'Не удалось обработать платёж')
         return {'ok':True}
     text=(msg.get('text') or '').split('@')[0].strip().split(' ')[0]
     if text in ('/start','/help','/profile','/daily','/enemies','/clan','/map','/skills','/bag','/story'):
         if text=='/daily':
             with SessionLocal.begin() as db:
-                p=db.get(Player,int(user['id']))
+                p=db.scalar(select(Player).where(Player.id==int(user['id'])).with_for_update())
                 if not p or not p.hero_class:reply='Сначала создай персонажа в игре.'
+                elif p.banned or p.frozen:reply='Персонаж заблокирован.'
                 elif p.last_daily==now().strftime('%Y-%m-%d'):reply='Сегодняшний набор уже получен. Возвращайся завтра!'
                 else:
                     p.last_daily=now().strftime('%Y-%m-%d');p.caps+=75;p.stamina=min(500,p.stamina+80)
@@ -839,9 +906,3 @@ async def webhook(request:Request):
         await telegram_api('sendMessage',message)
     return {'ok':True}
 
-@app.get('/api/admin/summary')
-def admin_summary(request:Request,db:Session=Depends(db_session)):
-    pid=identify(request.headers.get('authorization',''))['id']
-    if pid not in ADMIN_IDS:raise HTTPException(403,'Только администратор')
-    return {'players':db.scalar(select(func.count()).select_from(Player)), 'clans':db.scalar(select(func.count()).select_from(Clan)),
-            'battles':db.scalar(select(func.count()).select_from(Battle)),'lots':db.scalar(select(func.count()).select_from(MarketLot).where(MarketLot.active==True))}

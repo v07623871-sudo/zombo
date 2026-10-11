@@ -28,3 +28,8 @@ def test_telegram_commands(monkeypatch):
             if command=='/enemies':assert 'Обнаружено:' in data['text']
             if command=='/clan':assert 'КЛАНОВЫЕ ВОЙНЫ' in data['text']
         assert client.post('/telegram/webhook',json={'message':{'chat':{'id':pid},'from':{'id':pid},'text':'/help'}},headers={'X-Telegram-Bot-Api-Secret-Token':'invalid'}).status_code==403
+        with SessionLocal.begin() as db:
+            db.get(Player,pid).frozen=True
+        frozen=client.post('/telegram/webhook',json={'message':{'chat':{'id':pid},'from':{'id':pid},'text':'/daily'}},headers={'X-Telegram-Bot-Api-Secret-Token':'in-test-secret'})
+        assert frozen.status_code==200
+        assert 'заблокирован' in sender.call_args.args[1]['text']

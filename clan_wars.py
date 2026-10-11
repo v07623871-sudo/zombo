@@ -223,8 +223,8 @@ def bid(db, player, tid, amount, at=None):
     if tid not in TERRITORIES: raise ValueError('Нет такой территории')
     if amount < MIN_BID or amount > 1_000_000: raise ValueError(f'Ставка от {MIN_BID} до 1 000 000 крышек')
     if not player.clan_id: raise ValueError('Сначала вступи в клан')
-    c = db.scalar(select(Clan).where(Clan.id == player.clan_id).with_for_update())
-    if not can_command(db, player, c): raise ValueError('Ставку делает только лидер или воевода')
+    # Territory/war first, then all clan treasuries in a stable ID order.
+    # Opposing bids on the same lot cannot each hold the other's clan row.
     t = db.scalar(select(Territory).where(Territory.id == tid).with_for_update())
     if t.clan_id == player.clan_id: raise ValueError('Нельзя делать ставку на собственную территорию')
     war = db.scalar(select(TerritoryWar).where(TerritoryWar.territory_id == tid, TerritoryWar.war_date == date).with_for_update())
@@ -234,6 +234,12 @@ def bid(db, player, tid, amount, at=None):
         db.flush()
     if war.status != 'bidding': raise ValueError('Торги закончены')
     if amount <= war.bid: raise ValueError(f'Новая ставка должна быть выше {war.bid} крышек')
+    clan_ids={player.clan_id}
+    if war.attacker_clan_id:clan_ids.add(war.attacker_clan_id)
+    clans={clan.id:clan for clan in db.scalars(select(Clan).where(Clan.id.in_(clan_ids))
+                                           .order_by(Clan.id).with_for_update())}
+    c=clans.get(player.clan_id)
+    if not can_command(db, player, c): raise ValueError('Ставку делает только лидер или воевода')
     if war.attacker_clan_id == c.id:
         extra = amount - war.bid
         if c.treasury < extra: raise ValueError(f'В казне не хватает {extra} крышек')
@@ -242,8 +248,9 @@ def bid(db, player, tid, amount, at=None):
         if c.treasury < amount: raise ValueError('В казне недостаточно крышек')
         # Return reserved funds to the outbid clan immediately.
         if war.attacker_clan_id:
-            prev = db.scalar(select(Clan).where(Clan.id == war.attacker_clan_id).with_for_update())
-            if prev: prev.treasury += war.bid
+            prev=clans.get(war.attacker_clan_id)
+            if not prev: raise ValueError('Предыдущий клан не найден; торги остановлены')
+            prev.treasury += war.bid
         c.treasury -= amount
         war.attacker_clan_id = c.id
     war.bid = amount
