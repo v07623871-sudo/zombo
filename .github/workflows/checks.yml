@@ -64,4 +64,4 @@ jobs:
           DEMO_MODE: '1'
           PUBLIC_URL: ''
           TELEGRAM_WEBHOOK_SECRET: ''
-        run: python scripts/verify_clan_pg.py
+        run: PYTHONPATH=. python scripts/verify_clan_pg.py

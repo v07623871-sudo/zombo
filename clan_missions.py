@@ -174,10 +174,12 @@ def claim_clan_reward(db:Session,p:Player,code:str,at:datetime|None=None):
             'caps':reward['personal_caps'],'xp':reward['personal_xp']}
 
 
+class ClanMissionClaim(BaseModel):
+    code: str = Field(min_length=1, max_length=20)
+
+
 def install_clan_missions(app,with_player,ready):
     router=APIRouter(prefix='/api/clan-missions',tags=['Clan missions'])
-    class Claim(BaseModel):
-        code:str=Field(min_length=1,max_length=20)
     def session():
         db=SessionLocal()
         try:yield db
@@ -190,7 +192,7 @@ def install_clan_missions(app,with_player,ready):
             return board(db,p)
 
     @router.post('/claim')
-    def claim(body:Claim,request:Request,db:Session=Depends(session)):
+    def claim(body:ClanMissionClaim,request:Request,db:Session=Depends(session)):
         with db.begin():
             p=with_player(request,db);ready(p)
             return claim_clan_reward(db,p,body.code)
