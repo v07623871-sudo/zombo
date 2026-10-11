@@ -15,7 +15,7 @@ service variables as **Railway secret/reference variables**, not as literals in 
 - `S3_SECRET_ACCESS_KEY=${{<YOUR-BUCKET-NAME>.SECRET_ACCESS_KEY}}`
 - `BACKUP_RETENTION_DAYS=30`
 
-Set the service config file to `/ops/backup/railway.json` and Dockerfile to `/ops/backup/Dockerfile`, cron schedule to
+Set the service root directory to `/ops/backup`, Dockerfile to `Dockerfile`, and cron schedule to
 `0 3 * * *` (daily at 03:00 UTC), restart policy NEVER, and no HTTP healthcheck.
 
 The job runs `pg_dump -Fc`, validates with `pg_restore --list`, uploads to the
