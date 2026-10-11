@@ -270,6 +270,9 @@ def progress(db,pid,code,qty=1):
         q=QuestProgress(player_id=pid,code=code,amount=0)
         db.add(q)
     q.amount+=qty
+    # Server-side clan objectives advance only after a real, committed game event.
+    from clan_missions import record_clan_progress
+    record_clan_progress(db,pid,code,qty)
 
 def player_view(db,p):
     from gear import gear_list,gear_stats

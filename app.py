@@ -95,11 +95,11 @@ def _war_clock_tick():
         expire_sales(session)
         prune_update_receipts(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.10.2',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.11.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.10.2'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.11.0'}
 
 @app.get('/ready')
 def readiness():
@@ -231,12 +231,14 @@ from expeditions import install_expeditions, ExpeditionRun, ExpeditionMember, se
 from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats
 from story import install_story, StoryProgress, CHAPTERS
 from gear_market import install_gear_market, expire_sales
+from clan_missions import install_clan_missions
 from admin import install_admin
 install_raids(app, with_player, ready)
 install_expeditions(app, with_player, ready)
 install_gear(app, with_player, ready)
 install_story(app, with_player, ready)
 install_gear_market(app, with_player, ready, identify)
+install_clan_missions(app, with_player, ready)
 install_admin(app, identify, ADMIN_IDS)
 
 @app.post('/api/stat')

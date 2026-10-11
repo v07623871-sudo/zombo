@@ -22,7 +22,7 @@ jobs:
         run: |
           python -m pip install -r requirements.txt pytest
       - name: Compile Python sources
-        run: python -m compileall -q app.py game.py gear.py security.py tests
+        run: python -m compileall -q app.py game.py gear.py clan_missions.py security.py tests
       - name: Verify frontend syntax
         run: node --check static/app.js
       - name: Run regressions and game tests
@@ -32,3 +32,36 @@ jobs:
           BOT_TOKEN: ''
           TELEGRAM_WEBHOOK_SECRET: ''
         run: python -m pytest -q tests
+
+  postgres_smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: zombo_ci
+          POSTGRES_PASSWORD: zombo_ci_password
+          POSTGRES_DB: zombo_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U zombo_ci -d zombo_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: python -m pip install -r requirements.txt
+      - name: Real PostgreSQL gameplay and clan API smoke test
+        env:
+          DATABASE_URL: postgresql+psycopg://zombo_ci:zombo_ci_password@localhost:5432/zombo_ci
+          BOT_TOKEN: ''
+          DEMO_MODE: '1'
+          PUBLIC_URL: ''
+          TELEGRAM_WEBHOOK_SECRET: ''
+        run: python scripts/verify_clan_pg.py

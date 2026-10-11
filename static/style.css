@@ -265,3 +265,30 @@
 .gm-help{margin:20px 0;font-size:12px;line-height:1.65;color:#a5acb0}.gm-help strong{color:#e8d3ae;font-size:14px}.gm-help p{margin:8px 0 0}
 @media(max-width:360px){.gm-tools{align-items:flex-start}.gm-hero{padding:18px}.gm-card{padding:11px}.gm-art{min-width:44px;width:44px;height:50px;font-size:25px}}
 .admin-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.admin-stats .stat-chip{border:1px solid #4b514b}.admin-stats strong{font-size:18px;overflow-wrap:anywhere}.admin-search{display:flex;gap:8px;align-items:center}.admin-search input{min-width:0;flex:1}.admin-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.admin-detail{margin-top:14px;border-color:#9d7848}.admin-detail p{overflow-wrap:anywhere}.admin-detail .actions .btn{min-width:120px}.modal textarea{width:100%;min-height:70px;background:#11181d;color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:10px;resize:vertical}
+
+/* ZOMBO 0.11: cooperative clan objectives */
+.mission-head{border-color:#725d3f;background:linear-gradient(140deg,#292c27,#171d22 85%)}
+.mission-head h3{font:600 23px Oswald,Arial,sans-serif;letter-spacing:.4px;margin:7px 0}
+.mission-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.mission-meta span{background:#0d1317;border:1px solid #43493d;border-radius:8px;padding:8px 10px;font-size:11px;color:#c9d0c6}
+.mission-list{display:grid;gap:12px;margin:12px 0 24px}
+.mission-card{padding:17px 16px;background:linear-gradient(120deg,#222a2d,#141b20);border:1px solid #3d4747;border-radius:15px}
+.mission-card.is-complete{border-color:#947747;box-shadow:inset 0 0 18px #bf915011}
+.mission-card h3{font:600 22px Oswald,Arial,sans-serif;margin:12px 0 5px}
+.mission-card>p{font-size:11px;color:#a8b5b4;line-height:1.55;margin:0 0 12px}
+.mission-card .tag{font-size:10px}
+.mission-card>.flex-between>strong{font:600 17px Oswald,Arial,sans-serif;color:#eed0a0}
+.mission-rewards{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0;font-size:11px;color:#d3bc96}
+.mission-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #394147;padding-top:13px}
+.mission-footer>div{min-width:0;display:flex;flex-direction:column;gap:5px}
+.mission-footer strong{font-size:12px;color:#eef0ed}
+.mission-footer small{font-size:10px;color:#9caeac;line-height:1.4}
+.mission-footer .btn{flex:0 0 auto}
+.mission-rank-list{display:grid;gap:8px;margin-bottom:20px}
+.mission-rank{display:flex;align-items:center;gap:11px;background:#1c2429;border:1px solid #374145;border-radius:11px;padding:11px}
+.mission-place{width:27px;height:27px;flex:0 0 27px;background:#433724;color:#f3cd8e;border-radius:8px;display:grid;place-items:center;font-weight:800}
+.mission-rank>div{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.mission-rank strong{font-size:12px;overflow-wrap:anywhere}
+.mission-rank small{font-size:10px;color:#a0aeb1}
+.mission-rank>b{font-size:12px;white-space:nowrap;color:#efc57f}
+@media(max-width:390px){.mission-footer{align-items:stretch;flex-direction:column}.mission-footer .btn{width:100%}.mission-head .flex-between{flex-wrap:wrap}}
