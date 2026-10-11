@@ -55,13 +55,13 @@ class RaidMember(Base):
     __table_args__=(UniqueConstraint('run_id','player_id',name='unique_raid_member'),)
 
 class RaidRequest(BaseModel):
-    id:int=Field(gt=0)
+    id:int=Field(gt=0,le=9223372036854775807)
 
 class ScenarioRequest(BaseModel):
     key:str=Field(min_length=1,max_length=30)
 
 class RaidActionRequest(BaseModel):
-    id:int=Field(gt=0)
+    id:int=Field(gt=0,le=9223372036854775807)
     action:str=Field(pattern=r'^(attack|guard|medkit|rescue)$')
     target_id:int|None=None
 
@@ -195,9 +195,13 @@ def install_raids(app, with_player, ready):
             p=with_player(request,db);ready(p)
             r=db.scalar(select(RaidRun).where(RaidRun.id==body.id).with_for_update())
             if not r or r.status!='active':raise ValueError('Рейд неактивен')
-            if aware(r.expires_at)<=now():r.status='expired';raise ValueError('Время рейда вышло')
             fighter=db.scalar(select(RaidMember).where(RaidMember.run_id==r.id,RaidMember.player_id==p.id).with_for_update())
             if not fighter:raise ValueError('Ты не состоишь в этом рейде')
+            if aware(r.expires_at)<=now():
+                # Raising here rolled the status change back with the transaction.
+                r.status='expired'
+                raid_log(r,'Время истекло. Экспедиция не вернулась.')
+                return {'message':'Время рейда вышло', 'raid':view(db,r,p.id)}
             if fighter.hp<=0:raise ValueError('Персонаж выбит. Нужна помощь врача')
             if fighter.last_action and (now()-aware(fighter.last_action)).total_seconds()<ACTION_COOLDOWN:
                 raise ValueError('Способность восстанавливается. Подожди несколько секунд')

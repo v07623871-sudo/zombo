@@ -42,11 +42,19 @@ gear.GearItem, gear.MAX_GEAR = GearItem, 80
 gear.gear_view = lambda item: {'id':item.id,'name':'Автомат АК-47','rarity_name':'Редкий',
                               'rarity':item.rarity,'level':item.level,'slot':'weapon',
                               'power':30,'defense':0,'color':'#76aaff','icon':'🔫','equipped':item.equipped}
-sys.modules['models'] = models
-sys.modules['gear'] = gear
-spec = importlib.util.spec_from_file_location('gear_market_under_test', Path(__file__).resolve().parents[1] / 'gear_market.py')
-market = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(market)
+previous = {name: sys.modules.get(name) for name in ('models', 'gear')}
+try:
+    sys.modules['models'] = models
+    sys.modules['gear'] = gear
+    spec = importlib.util.spec_from_file_location('gear_market_under_test', Path(__file__).resolve().parents[1] / 'gear_market.py')
+    market = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(market)
+finally:
+    for name, module in previous.items():
+        if module is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
 
 @pytest.fixture
 def db():

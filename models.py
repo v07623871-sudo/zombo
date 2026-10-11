@@ -143,6 +143,28 @@ class Payment(Base):
     zombo = Column(Integer)
     created_at = Column(DateTime(timezone=True), default=now)
 
+class StarInvoice(Base):
+    """Server-issued Stars invoice. Receipts remain unique by Telegram charge ID."""
+    __tablename__ = 'star_invoices'
+    payload = Column(String(128), primary_key=True)
+    player_id = Column(BigInteger, ForeignKey('players.id'), nullable=False, index=True)
+    offer_key = Column(String(55), nullable=False)
+    stars = Column(Integer, nullable=False)
+    zombo = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+class PaymentReview(Base):
+    """Authenticated payment updates requiring operator reconciliation."""
+    __tablename__ = 'payment_reviews'
+    charge_id = Column(String(120), primary_key=True)
+    player_id = Column(BigInteger, nullable=False, index=True)
+    payload = Column(String(128), nullable=False)
+    currency = Column(String(8), nullable=False)
+    amount = Column(Integer, nullable=False)
+    reason = Column(String(60), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+
 class ClanOfficer(Base):
     """Additional clan permission (leader is stored in Clan)."""
     __tablename__ = 'clan_officers'
