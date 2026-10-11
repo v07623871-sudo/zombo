@@ -55,7 +55,22 @@ async def lifespan(app: FastAPI):
         result=await telegram_api('setWebhook',{'url':f'{PUBLIC_URL}/telegram/webhook','secret_token':SECRET,'allowed_updates':['message','pre_checkout_query']})
         logger.info('Webhook configured: %s',bool(result.get('ok')))
         await telegram_api('setChatMenuButton',{'menu_button':{'type':'web_app','text':'Открыть ZOMBO','web_app':{'url':PUBLIC_URL}}})
-        await telegram_api('setMyCommands',{'commands':[{'command':'start','description':'Начать игру'},{'command':'profile','description':'Персонаж'},{'command':'daily','description':'Ежедневная награда'},{'command':'help','description':'Как играть'},{'command':'enemies','description':'Бестиарий'},{'command':'clan','description':'Клановые войны'},{'command':'map','description':'Где я?'},{'command':'skills','description':'Прокачка'},{'command':'story','description':'Сюжетная кампания'},{'command':'bag','description':'Рюкзак'}]})
+        await telegram_api('setMyCommands',{'commands':[
+            {'command':'start','description':'Начать игру'},
+            {'command':'profile','description':'Персонаж'},
+            {'command':'daily','description':'Ежедневная награда'},
+            {'command':'top','description':'Рейтинг: уровень, зомби, PvP'},
+            {'command':'quests','description':'Задания и прогресс'},
+            {'command':'boss','description':'Мировой босс'},
+            {'command':'raid','description':'Мой рейд'},
+            {'command':'expedition','description':'Дальняя экспедиция'},
+            {'command':'help','description':'Список команд'},
+            {'command':'enemies','description':'Бестиарий'},
+            {'command':'clan','description':'Клановые войны'},
+            {'command':'map','description':'Где я?'},
+            {'command':'skills','description':'Прокачка'},
+            {'command':'story','description':'Сюжетная кампания'},
+            {'command':'bag','description':'Рюкзак'}]})
     loop = asyncio.create_task(_war_clock_loop())
     try:
         yield
@@ -78,11 +93,11 @@ def _war_clock_tick():
         refresh_world(session)
         expire_sales(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.9.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.9.2',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.9.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.9.2'}
 
 @app.get('/ready')
 def readiness():
@@ -188,8 +203,8 @@ def ready(p):
     if not p.hero_class:raise ValueError('Сначала выбери класс')
     if p.cooldown and aware(p.cooldown)>now():raise ValueError('Персонаж восстанавливается после смерти')
 
-from raids import install_raids
-from expeditions import install_expeditions
+from raids import install_raids, RaidRun, RaidMember
+from expeditions import install_expeditions, ExpeditionRun, ExpeditionMember, settle_player as settle_player_expedition
 from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats
 from story import install_story, StoryProgress, CHAPTERS
 from gear_market import install_gear_market, expire_sales
@@ -380,10 +395,24 @@ def quest_claim(body:Choice,request:Request,db:Session=Depends(db_session)):
         q.claimed=True;p.caps+=definition['reward']['caps'];gain_xp(p,definition['reward']['xp'])
         return {'message':'Задание завершено. Награда получена!'}
 
+LEADERBOARD_SORTS={
+    'level':('УРОВЕНЬ',Player.level.desc(),Player.xp.desc()),
+    'kills':('ЗАРАЖЁННЫЕ',Player.kills.desc(),Player.level.desc()),
+    'pvp':('АРЕНА',Player.rating.desc(),Player.pvp_wins.desc()),
+}
+
+def leaderboard_players(db:Session,sort:str='level',limit:int=30):
+    if sort not in LEADERBOARD_SORTS:raise ValueError('Неизвестный рейтинг')
+    _,primary,secondary=LEADERBOARD_SORTS[sort]
+    return db.scalars(select(Player).where(Player.hero_class.isnot(None),
+        Player.banned.is_(False),Player.frozen.is_(False))
+        .order_by(primary,secondary,Player.id).limit(limit)).all()
+
 @app.get('/api/leaderboard')
-def leaderboard(db:Session=Depends(db_session)):
-    q=select(Player).where(Player.hero_class.isnot(None)).order_by(Player.level.desc(),Player.xp.desc()).limit(30)
-    return [{'id':x.id,'name':x.name,'level':x.level,'class':x.hero_class,'rating':x.rating,'kills':x.kills} for x in db.scalars(q)]
+def leaderboard(sort:str='level',db:Session=Depends(db_session)):
+    return [{'id':x.id,'name':x.name,'level':x.level,'class':x.hero_class,
+             'rating':x.rating,'kills':x.kills,'pvp_wins':x.pvp_wins}
+            for x in leaderboard_players(db,sort)]
 
 @app.get('/api/boss')
 def world_boss(db:Session=Depends(db_session)):
@@ -398,7 +427,7 @@ def world_boss(db:Session=Depends(db_session)):
 def boss_hit(request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db);ready(p);spend_stamina(p,5)
-        b=db.scalar(select(WorldBoss).where(WorldBoss.id==1).with_for_update()) or boss_sync(db)
+        b=boss_sync(db)
         if b.hp<=0:raise ValueError('Босс уже повержен. Жди нового цикла')
         entry=db.scalar(select(BossHit).where(BossHit.player_id==p.id,BossHit.spawn_at==str(int(aware(b.spawn_at).timestamp()))).with_for_update())
         if entry and (now()-aware(entry.last_hit)).total_seconds()<30:raise ValueError('Повторная атака через 30 секунд')
@@ -786,6 +815,73 @@ async def invoice(body:Choice,request:Request,db:Session=Depends(db_session)):
         raise HTTPException(502,'Не удалось сформировать счёт Telegram Stars')
     return {'url':result['result']}
 
+def bot_top(db:Session,mode:str,player_id:int):
+    aliases={'':'level','level':'level','lvl':'level','уровень':'level',
+             'kills':'kills','zombies':'kills','зомби':'kills',
+             'pvp':'pvp','arena':'pvp','арена':'pvp'}
+    sort=aliases.get(mode)
+    if sort is None:return 'Рейтинги: /top level · /top kills · /top pvp'
+    title=LEADERBOARD_SORTS[sort][0]
+    rows=leaderboard_players(db,sort,10)
+    lines=[]
+    for index,p in enumerate(rows,1):
+        score=(f'ур. {p.level}' if sort=='level' else
+               f'{p.kills} побед' if sort=='kills' else f'{p.rating} рейтинга · {p.pvp_wins} побед')
+        lines.append(f'{index}. {p.name[:40]} — {score}'+(' ← ты' if p.id==player_id else ''))
+    return f'🏆 ТОП-10 · {title}\n'+('\n'.join(lines) if lines else 'Пока нет участников.')+'\n\n/top level · /top kills · /top pvp'
+
+def bot_quests(db:Session,player_id:int):
+    p=db.get(Player,player_id)
+    if not p or not p.hero_class:return 'Сначала создай персонажа в игре.'
+    progress_rows={q.code:q for q in db.scalars(select(QuestProgress).where(QuestProgress.player_id==player_id))}
+    lines=[]
+    for key,definition in QUESTS.items():
+        q=progress_rows.get(key)
+        amount=min(q.amount if q else 0,definition['target'])
+        status='получено' if q and q.claimed else 'награда готова' if amount>=definition['target'] else f'{amount}/{definition["target"]}'
+        lines.append(f'• {definition["name"]}: {status}')
+    return '▣ ЗАДАНИЯ\n'+'\n'.join(lines)+'\n\nНаграды забираются в Mini App.'
+
+def bot_boss(db:Session):
+    boss=boss_sync(db)
+    cycle=str(int(aware(boss.spawn_at).timestamp()))
+    leaders=db.execute(select(BossHit.player_id,func.sum(BossHit.damage))
+        .where(BossHit.spawn_at==cycle).group_by(BossHit.player_id)
+        .order_by(func.sum(BossHit.damage).desc()).limit(3)).all()
+    names={p.id:p.name for p in db.scalars(select(Player).where(Player.id.in_([pid for pid,_ in leaders])))}
+    remaining=max(0,round(((aware(boss.spawn_at)+timedelta(days=3))-now()).total_seconds()/3600))
+    top='\n'.join(f'{i}. {names.get(pid,"Выживший")[:40]} — {damage} урона' for i,(pid,damage) in enumerate(leaders,1))
+    return f'☣ МИРОВОЙ БОСС\n{boss.name}\nHP: {boss.hp}/{boss.max_hp}\nДо смены цикла: ~{remaining} ч.\n\nТОП УРОНА\n{top or "Пока никто не атаковал."}'
+
+def bot_raid(db:Session,player_id:int):
+    run=db.scalar(select(RaidRun).join(RaidMember,RaidMember.run_id==RaidRun.id)
+        .where(RaidMember.player_id==player_id).order_by(RaidRun.id.desc()).limit(1).with_for_update(of=RaidRun))
+    if not run:return 'Сейчас ты не состоишь в рейде.'
+    if run.status in ('lobby','active') and aware(run.expires_at)<=now():run.status='expired'
+    state={'lobby':'сбор группы','active':f'этап {run.stage+1}/3',
+           'cleared':'победа','failed':'поражение','expired':'время вышло'}.get(run.status,run.status)
+    member=db.scalar(select(RaidMember).where(RaidMember.run_id==run.id,RaidMember.player_id==player_id))
+    reward='Награда получена.' if member and member.rewarded else 'Награда доступна в Mini App.' if run.status=='cleared' and member and member.actions>0 else ''
+    return f'⚔ РЕЙД #{run.id}\nСтатус: {state}\nУрон: {member.contribution if member else 0}\n{reward}'.strip()
+
+def bot_expedition(db:Session,player_id:int):
+    settle_player_expedition(db,player_id)
+    run=db.scalar(select(ExpeditionRun).join(ExpeditionMember,
+        ExpeditionMember.run_id==ExpeditionRun.id).where(ExpeditionMember.player_id==player_id)
+        .order_by(ExpeditionRun.id.desc()).limit(1))
+    if not run:return 'У тебя пока нет дальней экспедиции.'
+    member=db.scalar(select(ExpeditionMember).where(ExpeditionMember.run_id==run.id,
+        ExpeditionMember.player_id==player_id))
+    status={'lobby':'сбор отряда','active':'отряд в пути','cleared':'успех',
+            'failed':'неудача','expired':'группа распущена'}.get(run.status,run.status)
+    detail=''
+    if run.status=='active' and run.finishes_at:
+        hours=max(0,round((aware(run.finishes_at)-now()).total_seconds()/3600,1))
+        detail=f'\nДо возвращения: ~{hours} ч.'
+    elif run.status in ('cleared','failed'):
+        detail='\nНаграда получена.' if member.rewarded else '\nНаграда ждёт в Mini App.'
+    return f'⌖ ЭКСПЕДИЦИЯ #{run.id}\nСтатус: {status}{detail}'
+
 @app.post('/telegram/webhook')
 async def webhook(request:Request):
     if not SECRET or not hmac.compare_digest(request.headers.get('x-telegram-bot-api-secret-token',''),SECRET):
@@ -829,8 +925,11 @@ async def webhook(request:Request):
             logger.exception('payment processing error')
             raise HTTPException(503,'Не удалось обработать платёж')
         return {'ok':True}
-    text=(msg.get('text') or '').split('@')[0].strip().split(' ')[0]
-    if text in ('/start','/help','/profile','/daily','/enemies','/clan','/map','/skills','/bag','/story'):
+    parts=(msg.get('text') or '').strip().split(maxsplit=1)
+    text=parts[0].split('@',1)[0].lower() if parts else ''
+    argument=parts[1].strip().split()[0].lower() if len(parts)>1 and parts[1].strip() else ''
+    if text in ('/start','/help','/profile','/daily','/enemies','/clan','/map','/skills','/bag','/story',
+                '/top','/rank','/quests','/boss','/raid','/expedition'):
         if text=='/daily':
             with SessionLocal.begin() as db:
                 p=db.scalar(select(Player).where(Player.id==int(user['id'])).with_for_update())
@@ -841,6 +940,16 @@ async def webhook(request:Request):
                     p.last_daily=now().strftime('%Y-%m-%d');p.caps+=75;p.stamina=min(500,p.stamina+80)
                     give_item(db,p.id,'food');give_item(db,p.id,'water');gain_xp(p,45)
                     reply='🎁 +75 крышек, +80 энергии, еда, вода и +45 XP!'
+        elif text in ('/top','/rank'):
+            with SessionLocal() as db:reply=bot_top(db,argument,int(user['id']))
+        elif text=='/quests':
+            with SessionLocal() as db:reply=bot_quests(db,int(user['id']))
+        elif text=='/boss':
+            with SessionLocal.begin() as db:reply=bot_boss(db)
+        elif text=='/raid':
+            with SessionLocal.begin() as db:reply=bot_raid(db,int(user['id']))
+        elif text=='/expedition':
+            with SessionLocal.begin() as db:reply=bot_expedition(db,int(user['id']))
         elif text=='/enemies':
             with SessionLocal() as db:
                 p=db.get(Player,int(user['id']))
@@ -899,7 +1008,7 @@ async def webhook(request:Request):
             with SessionLocal() as db:
                 p=db.get(Player,int(user['id']))
                 reply=f'🧟 {p.name}\nУровень {p.level} · {CLASSES.get(p.hero_class,{}).get("name","Новичок")}\n❤️ {p.hp}/{max_hp(p)} · ⚡ {p.stamina}/500\nКрышки: {p.caps}' if p else 'Открой игру, чтобы создать персонажа.'
-        elif text=='/help':reply='📟 КОМАНДЫ ZOMBO\n/start — начать\n/profile — герой\n/skills — таланты\n/map — позиция\n/enemies — бестиарий\n/bag — рюкзак\n/clan — клан и КВ\n/daily — ежедневные припасы'
+        elif text=='/help':reply='📟 КОМАНДЫ ZOMBO\n/start — начать\n/profile — герой\n/skills — таланты\n/map — позиция\n/enemies — бестиарий\n/bag — рюкзак\n/clan — клан и КВ\n/daily — ежедневные припасы\n/quests — задания\n/boss — мировой босс\n/raid — мой рейд\n/expedition — дальняя экспедиция\n/top — лидеры по уровню\n/top kills — победы над зомби\n/top pvp — рейтинг арены'
         else:reply='🧟 ZOMBO: After the Fall\n1. Выбери класс и отправься в Мёртвый лес.\n2. Побеждай заражённых и открывай досье врагов.\n3. Прокачивай три ветки талантов.\n4. Вступи в клан и борись за территории!\n\nКоманды: /help'
         message={'chat_id':chat_id,'text':reply}
         if PUBLIC_URL:message['reply_markup']={'inline_keyboard':[[{'text':'🎮 Открыть ZOMBO','web_app':{'url':PUBLIC_URL}}]]}

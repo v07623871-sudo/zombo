@@ -457,10 +457,21 @@ def spawn_battle(db,p):
     return battle_view(b)
 
 def boss_sync(db):
-    b=db.get(WorldBoss,1)
+    b=db.scalar(select(WorldBoss).where(WorldBoss.id==1).with_for_update())
     if not b:
-        b=WorldBoss(id=1,name='Гниющий колосс',hp=500000,max_hp=500000,spawn_at=now())
-        db.add(b);db.flush()
-    elif now()-aware(b.spawn_at)>timedelta(days=3):
-        b.spawn_at=now();b.hp=b.max_hp
+        # Multiple workers may receive the first request together. Insert one
+        # row and then lock it, rather than letting a duplicate insert fail.
+        dialect=db.get_bind().dialect.name
+        if dialect=='postgresql':
+            from sqlalchemy.dialects.postgresql import insert
+        elif dialect=='sqlite':
+            from sqlalchemy.dialects.sqlite import insert
+        else:
+            raise RuntimeError('World boss requires PostgreSQL or SQLite')
+        db.execute(insert(WorldBoss).values(id=1,name='Гниющий колосс',hp=500000,
+                    max_hp=500000,spawn_at=now()).on_conflict_do_nothing(index_elements=['id']))
+        b=db.scalar(select(WorldBoss).where(WorldBoss.id==1).with_for_update())
+    stamp=now()
+    if stamp-aware(b.spawn_at)>timedelta(days=3):
+        b.spawn_at=stamp;b.hp=b.max_hp
     return b

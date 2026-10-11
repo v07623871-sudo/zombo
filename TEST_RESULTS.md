@@ -1,4 +1,16 @@
-# Проверки версии 0.9.0
+# Проверки версии 0.9.2
+
+- Итоговый `python -m pytest -q tests` — **55 passed**, 127 предупреждений об устаревающих API на локальном Python 3.14. Новые проверки: сортировка рейтинга по уровню, убийствам и PvP, скрытие заблокированных игроков, команды Telegram `/top`, `/quests`, `/boss`, `/raid`, `/expedition` для пустого и активного состояния.
+- `node --check static/app.js` и `python -m compileall -q app.py admin.py game.py gear.py gear_market.py raids.py expeditions.py clan_wars.py story.py scripts` — успешно.
+- Локальный браузер с `DEMO_MODE=1`: вручную пройдены «База → Меню → Лидеры → Арена → Назад → Меню → Назад → База», проверены группировка меню и вид кнопки «Назад». Тест проводился на локальной SQLite; настоящий Telegram BackButton и узкие физические телефоны не проверялись.
+
+## Предыдущие проверки 0.9.1
+
+- Перед исправлением добавленный `tests/test_boss_cycle.py` воспроизвёл ошибку: прямой `/api/boss/hit` после истечения старого цикла возвращал 400, если экран босса ещё не открывали. После исправления тест проходит: новый цикл начинается при ударе, прежняя запись урона остаётся в БД, рейтинг относится к новому циклу.
+- Итоговый `python -m pytest -q tests` — **54 passed**, 127 предупреждений об устаревающих API на локальном Python 3.14.
+- `node --check static/app.js` и `python -m compileall -q app.py admin.py game.py gear.py gear_market.py raids.py expeditions.py clan_wars.py story.py scripts` — успешно.
+
+## Предыдущие проверки 0.9.0
 
 - После добавления дальних экспедиций: `python -m pytest -q tests` — **53 passed**, 127 предупреждений об устаревающих API на локальном Python 3.14. Новые четыре API-теста проверяют 12-часовой цикл, роли и права, успешную/неудачную выдачу, срок набора, передачу лидерства, полный склад и защиту от повторного начисления.
 - `node --check static/app.js` — успешно. `python -m compileall -q app.py admin.py game.py gear.py gear_market.py raids.py expeditions.py clan_wars.py story.py scripts` — успешно.
