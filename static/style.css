@@ -154,6 +154,15 @@
 .bestiary-rank{font-size:8px;font-weight:800;color:#d7b57d;letter-spacing:1px;line-height:1.4}.bestiary-card h3{font:600 19px Oswald,sans-serif;margin:5px 0}.bestiary-card p{color:#9cabaa;font-size:9px;line-height:1.5;margin:0 0 10px;min-height:42px}.bestiary-ability{display:flex;gap:5px;align-items:center;color:#e7c18b;font-size:10px;border-top:1px solid #3c4849;padding-top:9px}.bestiary-ability .ui-icon{width:14px;height:14px}
 .mob-combat{padding:13px 13px 15px}.combat-tag{display:flex;justify-content:center;align-items:center;gap:6px;color:#e7be81;font-size:10px;font-weight:800;letter-spacing:1px}
 .mob-combat .monster{height:200px;display:grid;place-items:center;margin-top:-5px}.mob-combat .mob-portrait{max-height:205px;max-width:220px}
+.mob-tap{position:relative;display:grid;place-items:center;width:min(230px,70vw);height:200px;padding:0;border:0;background:transparent;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent}
+.mob-tap .mob-portrait{pointer-events:none;transition:transform .13s ease,filter .13s ease}.mob-tap:active .mob-portrait,.mob-tap.is-striking .mob-portrait{transform:translateY(4px) scale(.97);filter:drop-shadow(0 5px 5px #000a) brightness(1.18)}
+.mob-tap.hit-confirmed .mob-portrait{animation:mob-hit .4s ease-out}.mob-tap:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:12px}.mob-tap:disabled{cursor:default;opacity:.55}
+.tap-hint{font-size:9px;font-weight:800;letter-spacing:.65px;color:#d5b178;margin:-3px 0 8px}.fight-zone-hint{font-size:10px;line-height:1.5;color:#aab7b0;margin:8px 0 10px}
+.tap-damage{position:absolute;top:22%;left:50%;transform:translate(-50%,0);z-index:2;color:#f4b375;font:800 28px Oswald,Arial,sans-serif;text-shadow:0 2px 7px #000,0 0 12px #ab442d;pointer-events:none;animation:tap-number .75s ease-out forwards}.tap-damage.missed{font-size:17px;color:#e7dfc1}
+.fight-recent{display:grid;gap:3px;padding:9px 12px;margin-top:9px;background:#242c2b;border-left:2px solid #bb8b57;border-radius:6px;font-size:10px;line-height:1.4;color:#c9d0c8}.fight-recent strong{font-size:9px;letter-spacing:1px;color:#deb77b}
+@keyframes mob-hit{0%{transform:translateX(0)}25%{transform:translateX(-7px)}55%{transform:translateX(6px)}100%{transform:translateX(0)}}
+@keyframes tap-number{0%{opacity:0;transform:translate(-50%,8px) scale(.8)}18%{opacity:1;transform:translate(-50%,-5px) scale(1.1)}100%{opacity:0;transform:translate(-50%,-42px) scale(1)}}
+@media(prefers-reduced-motion:reduce){.mob-tap .mob-portrait{transition:none}.mob-tap.hit-confirmed .mob-portrait,.tap-damage{animation:none}}
 .mob-combat h2{font-size:26px;margin:0}.mob-description{font-size:10px;color:#bac2ba;margin:5px auto;line-height:1.5;max-width:300px}
 .mob-combat-trait{font-size:9px;color:#dfc08d;letter-spacing:.4px;text-transform:uppercase;font-weight:800;margin:9px 0 2px}
 .battle-hp{max-width:260px;margin:2px auto 4px}.fight-actions-panel{padding:12px 13px}.fight-actions-panel .section-label{margin:13px 0 8px}.fight-actions-panel .actions{margin-top:8px}
