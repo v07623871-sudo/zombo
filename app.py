@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
         result=await telegram_api('setWebhook',{'url':f'{PUBLIC_URL}/telegram/webhook','secret_token':SECRET,'allowed_updates':['message','pre_checkout_query']})
         logger.info('Webhook configured: %s',bool(result.get('ok')))
         await telegram_api('setChatMenuButton',{'menu_button':{'type':'web_app','text':'Открыть ZOMBO','web_app':{'url':PUBLIC_URL}}})
-        await telegram_api('setMyCommands',{'commands':[{'command':'start','description':'Начать игру'},{'command':'profile','description':'Персонаж'},{'command':'daily','description':'Ежедневная награда'},{'command':'help','description':'Как играть'},{'command':'enemies','description':'Бестиарий'},{'command':'clan','description':'Клановые войны'},{'command':'map','description':'Где я?'},{'command':'skills','description':'Прокачка'},{'command':'bag','description':'Рюкзак'}]})
+        await telegram_api('setMyCommands',{'commands':[{'command':'start','description':'Начать игру'},{'command':'profile','description':'Персонаж'},{'command':'daily','description':'Ежедневная награда'},{'command':'help','description':'Как играть'},{'command':'enemies','description':'Бестиарий'},{'command':'clan','description':'Клановые войны'},{'command':'map','description':'Где я?'},{'command':'skills','description':'Прокачка'},{'command':'story','description':'Сюжетная кампания'},{'command':'bag','description':'Рюкзак'}]})
     loop = asyncio.create_task(_war_clock_loop())
     try:
         yield
@@ -74,11 +74,11 @@ def _war_clock_tick():
     with SessionLocal.begin() as session:
         refresh_world(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.6.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.7.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.6.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.7.0'}
 
 @app.get('/')
 def home():return FileResponse(os.path.join(os.path.dirname(__file__),'static','index.html'))
@@ -175,9 +175,11 @@ def ready(p):
     if p.cooldown and aware(p.cooldown)>now():raise ValueError('Персонаж восстанавливается после смерти')
 
 from raids import install_raids
-from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats
+from gear import install_gear, create_gear, GearItem, BASE_GEAR
+from story import install_story, StoryProgress, CHAPTERS, gear_stats
 install_raids(app, with_player, ready)
 install_gear(app, with_player, ready)
+install_story(app, with_player, ready)
 
 @app.post('/api/stat')
 def upgrade_stat(body:Choice,request:Request,db:Session=Depends(db_session)):
@@ -759,7 +761,7 @@ async def webhook(request:Request):
         except Exception:logger.exception('payment processing error')
         return {'ok':True}
     text=(msg.get('text') or '').split('@')[0].strip().split(' ')[0]
-    if text in ('/start','/help','/profile','/daily','/enemies','/clan','/map','/skills','/bag'):
+    if text in ('/start','/help','/profile','/daily','/enemies','/clan','/map','/skills','/bag','/story'):
         if text=='/daily':
             with SessionLocal.begin() as db:
                 p=db.get(Player,int(user['id']))
@@ -797,6 +799,18 @@ async def webhook(request:Request):
                             owner=clan.name if clan else 'Зомби'
                     reply=f'⌖ ТВОЯ ПОЗИЦИЯ\n{loc["name"]} · опасность {loc["threat"]}/5\nКонтроль: {owner}\n\nОткрой карту, чтобы выбрать следующую зону.'
                 else: reply='Ты ещё не создал персонажа. Открой игру.'
+        elif text=='/story':
+            with SessionLocal() as db:
+                p=db.get(Player,int(user['id']))
+                if not p or not p.hero_class:
+                    reply='📻 СЮЖЕТ ZOMBO\nВыбери класс, чтобы начать кампанию «Протокол Седьмой».'
+                else:
+                    st=db.get(StoryProgress,p.id)
+                    chapter_index=min(st.chapter if st else 0,10)
+                    name=CHAPTERS[chapter_index]['title'] if chapter_index<10 else 'История завершена'
+                    progress_count=st.stage if st else 0
+                    unlock=CHAPTERS[chapter_index]['level'] if chapter_index<10 else 0
+                    reply=f'📻 ПРОТОКОЛ СЕДЬМОЙ\nГлав пройдено: {chapter_index}/10\nТекущая глава: {name}\nЭтап: {progress_count+1 if chapter_index<10 else "финал"}\nРекомендуемый уровень: {unlock}\n\nНайди пункт «Сюжетная кампания» в Mini App.'
         elif text=='/skills':
             with SessionLocal() as db:
                 p=db.get(Player,int(user['id']))
