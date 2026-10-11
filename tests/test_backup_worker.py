@@ -38,3 +38,20 @@ def test_backup_retention_never_deletes_other_prefixes():
         def delete_object(self, **kw):deleted.append(kw['Key'])
     out = worker.retention(FakeS3(),'zombo-test',cutoff=datetime.now(timezone.utc)-timedelta(days=30))
     assert out==1 and deleted==[worker.PREFIX+'old.dump']
+
+
+def test_restore_drill_refuses_production_and_same_host():
+    import importlib.util
+    path = Path(__file__).parents[1] / 'ops' / 'backup' / 'restore_test.py'
+    import sys
+    sys.modules['worker'] = worker
+    module_spec = importlib.util.spec_from_file_location('restore_test', path)
+    check = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(check)
+    assert check.restore_target_is_safe('postgresql://one:secret@prod.internal/game',
+                                        'postgresql://other:secret@test.internal/drill')
+    with pytest.raises(ValueError, match='different PostgreSQL host'):
+        check.restore_target_is_safe('postgresql://one:secret@prod.internal/game',
+                                     'postgresql://other:secret@prod.internal/drill')
+    with pytest.raises(ValueError):
+        check.restore_target_is_safe('postgresql://one:secret@prod.internal/game','sqlite:///test.db')
