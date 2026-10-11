@@ -45,12 +45,12 @@ def enforce_quota(db: Session, player_id: int, scope: str, *, limit: int, timest
     timestamp = int(now().timestamp()) if timestamp is None else int(timestamp)
     window = timestamp // 60
     result = db.execute(text('''
-        INSERT INTO api_quotas (player_id, scope, window, count)
+        INSERT INTO api_quotas (player_id, scope, "window", count)
         VALUES (:player_id, :scope, :window, 1)
         ON CONFLICT (player_id, scope) DO UPDATE SET
-            count = CASE WHEN api_quotas.window = :window
+            count = CASE WHEN api_quotas."window" = :window
                 THEN api_quotas.count + 1 ELSE 1 END,
-            window = :window
+            "window" = :window
         RETURNING count
     '''), {'player_id': int(player_id), 'scope': scope, 'window': window})
     count = result.scalar_one()
