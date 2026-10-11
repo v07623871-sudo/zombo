@@ -66,6 +66,8 @@ async def lifespan(app: FastAPI):
             {'command':'raid','description':'Мой рейд'},
             {'command':'expedition','description':'Дальняя экспедиция'},
             {'command':'help','description':'Список команд'},
+            {'command':'id','description':'Мой Telegram ID'},
+            {'command':'admin','description':'Проверить доступ администратора'},
             {'command':'enemies','description':'Бестиарий'},
             {'command':'clan','description':'Клановые войны'},
             {'command':'map','description':'Где я?'},
@@ -978,8 +980,19 @@ async def _dispatch_update(data):
     text=parts[0].split('@',1)[0].lower() if parts else ''
     argument=parts[1].strip().split()[0].lower() if len(parts)>1 and parts[1].strip() else ''
     if text in ('/start','/help','/profile','/daily','/enemies','/clan','/map','/skills','/bag','/story',
-                '/top','/rank','/quests','/boss','/raid','/expedition'):
-        if text=='/daily':
+                '/top','/rank','/quests','/boss','/raid','/expedition','/id','/admin'):
+        if text in ('/id', '/admin'):
+            if msg.get('chat', {}).get('type') != 'private':
+                reply = '🔒 Напиши команду в личных сообщениях боту.'
+            elif text == '/id':
+                reply = f'🆔 Твой Telegram ID: {int(user["id"])}.\nДобавить администратора: Railway → zombo-web → Variables → ADMIN_IDS.'
+            elif int(user['id']) in ADMIN_IDS:
+                reply = '🛡 Доступ подтверждён. Открой игру → Меню → Админский терминал. Без класса сначала создай персонажа.'
+            elif not ADMIN_IDS:
+                reply = f'🔒 Админка не настроена. Твой Telegram ID: {int(user["id"])}.\nRailway → zombo-web → Variables → ADMIN_IDS → вставь свой ID.'
+            else:
+                reply = f'🔒 Твой Telegram ID: {int(user["id"])}.\nДобавь этот номер в ADMIN_IDS на Railway.'
+        elif text=='/daily':
             with SessionLocal.begin() as db:
                 p=db.scalar(select(Player).where(Player.id==int(user['id'])).with_for_update())
                 if not p or not p.hero_class:reply='Сначала создай персонажа в игре.'
@@ -1057,7 +1070,7 @@ async def _dispatch_update(data):
             with SessionLocal() as db:
                 p=db.get(Player,int(user['id']))
                 reply=f'🧟 {p.name}\nУровень {p.level} · {CLASSES.get(p.hero_class,{}).get("name","Новичок")}\n❤️ {p.hp}/{max_hp(p)} · ⚡ {p.stamina}/500\nКрышки: {p.caps}' if p else 'Открой игру, чтобы создать персонажа.'
-        elif text=='/help':reply='📟 КОМАНДЫ ZOMBO\n/start — начать\n/profile — герой\n/skills — таланты\n/map — позиция\n/enemies — бестиарий\n/bag — рюкзак\n/clan — клан и КВ\n/daily — ежедневные припасы\n/quests — задания\n/boss — мировой босс\n/raid — мой рейд\n/expedition — дальняя экспедиция\n/top — лидеры по уровню\n/top kills — победы над зомби\n/top pvp — рейтинг арены'
+        elif text=='/help':reply='📟 КОМАНДЫ ZOMBO\n/id — мой Telegram ID\n/admin — админский доступ\n/start — начать\n/profile — герой\n/skills — таланты\n/map — позиция\n/enemies — бестиарий\n/bag — рюкзак\n/clan — клан и КВ\n/daily — ежедневные припасы\n/quests — задания\n/boss — мировой босс\n/raid — мой рейд\n/expedition — дальняя экспедиция\n/top — лидеры по уровню\n/top kills — победы над зомби\n/top pvp — рейтинг арены'
         else:reply='🧟 ZOMBO: After the Fall\n1. Выбери класс и отправься в Мёртвый лес.\n2. Побеждай заражённых и открывай досье врагов.\n3. Прокачивай три ветки талантов.\n4. Вступи в клан и борись за территории!\n\nКоманды: /help'
         message={'chat_id':chat_id,'text':reply}
         if PUBLIC_URL:message['reply_markup']={'inline_keyboard':[[{'text':'🎮 Открыть ZOMBO','web_app':{'url':PUBLIC_URL}}]]}

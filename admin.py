@@ -1,7 +1,10 @@
 """Authenticated admin API. Every mutation is audited in the same DB transaction."""
 from uuid import UUID
+from collections import defaultdict
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, Request
+from io import StringIO
+import csv
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, func, or_, select
 from sqlalchemy.orm import Session
@@ -219,6 +222,101 @@ def install_admin(app, identify, admin_ids):
                            'action': x.action, 'field': x.field, 'before': x.before,
                            'after': x.after, 'reason': x.reason, 'created_at': x.created_at.isoformat()}
                           for x in logs[:30]]}
+
+    @router.get('/audit/export')
+    def export_audit(request: Request, limit: int = 1000, db: Session = Depends(session)):
+        """Export a bounded, authenticated UTF-8 audit CSV; no public download URL."""
+        actor(request, db)
+        limit = max(1, min(limit, 5000))
+        rows = db.scalars(select(AdminAudit).order_by(AdminAudit.id.desc()).limit(limit)).all()
+        output = StringIO(newline='')
+        writer = csv.writer(output)
+        writer.writerow(('id','created_at','actor_id','target_id','action','field',
+                         'before','after','reason'))
+
+        def safe(value):
+            # CSV values are opened as spreadsheet cells; neutralize formulas,
+            # including fields beginning with leading whitespace.
+            raw = str(value if value is not None else '')
+            if raw.lstrip(' \t\r\n').startswith(('=', '+', '-', '@')):
+                return "'" + raw
+            return raw
+
+        for log in rows:
+            writer.writerow([safe(value) for value in
+                            (log.id, log.created_at.isoformat(), log.actor_id,
+                             log.target_id, log.action, log.field, log.before,
+                             log.after, log.reason)])
+        data = '\ufeff' + output.getvalue()
+        return Response(content=data, media_type='text/csv; charset=utf-8',
+                        headers={'Content-Disposition': 'attachment; filename="zombo-admin-audit.csv"',
+                                 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'})
+
+    @router.get('/risk')
+    def risk_report(request: Request, db: Session = Depends(session)):
+        """Read-only signals for a human to review, never an automatic ban."""
+        actor(request, db)
+        instant = now()
+        cutoff = instant - timedelta(days=7)
+        sales = db.scalars(select(GearSale).where(
+            GearSale.status == 'sold', GearSale.closed_at >= cutoff,
+            GearSale.buyer_id.is_not(None))
+            .order_by(GearSale.id.desc()).limit(500)).all()
+        reviews = db.scalars(select(PaymentReview)
+            .order_by(PaymentReview.created_at.desc()).limit(30)).all()
+        changes = db.scalars(select(AdminAudit).where(
+            AdminAudit.field == 'caps', AdminAudit.created_at >= cutoff)
+            .order_by(AdminAudit.id.desc()).limit(500)).all()
+
+        findings = []
+        pairs = defaultdict(list)
+        for sale in sales:
+            if sale.seller_id == sale.buyer_id:
+                findings.append({'type':'self_trade','severity':'high',
+                    'title':'Продавец совпадает с покупателем',
+                    'description':f'Сделка #{sale.id} на {sale.price} крышек.',
+                    'player_id':sale.seller_id, 'related_player_id':sale.buyer_id,
+                    'reference_id':sale.id, 'created_at':sale.closed_at.isoformat()})
+            if sale.price >= 150000:
+                findings.append({'type':'large_sale','severity':'medium',
+                    'title':'Крупная сделка с экипировкой',
+                    'description':f'Лот #{sale.id}: {sale.price} крышек. Проверь контекст продажи.',
+                    'player_id':sale.seller_id, 'related_player_id':sale.buyer_id,
+                    'reference_id':sale.id, 'created_at':sale.closed_at.isoformat()})
+            pair = tuple(sorted((sale.seller_id, sale.buyer_id)))
+            pairs[pair].append(sale)
+        for pair, deals in pairs.items():
+            if len(deals) >= 4:
+                last = max(deals, key=lambda x: x.id)
+                findings.append({'type':'repeated_trades','severity':'medium',
+                    'title':'Повторяющиеся сделки между двумя игроками',
+                    'description':f'{len(deals)} закрытых сделок за 7 дней (из 500 последних).',
+                    'player_id':pair[0], 'related_player_id':pair[1],
+                    'reference_id':last.id, 'created_at':last.closed_at.isoformat()})
+
+        for entry in reviews:
+            findings.append({'type':'payment_review','severity':'high',
+                'title':'Платёж Telegram требует сверки',
+                'description':f'{entry.amount} {entry.currency}: {entry.reason}. Не зачислять без сверки.',
+                'player_id':entry.player_id, 'related_player_id':None,
+                'reference_id':None, 'created_at':entry.created_at.isoformat()})
+
+        for log in changes:
+            try:
+                difference = int(log.after) - int(log.before)
+            except (TypeError, ValueError):
+                continue
+            if abs(difference) >= 50000:
+                findings.append({'type':'large_admin_adjustment','severity':'medium',
+                    'title':'Крупное изменение крышек администратором',
+                    'description':f'Журнал #{log.id}: {difference:+d} крышек, админ #{log.actor_id}.',
+                    'player_id':log.target_id, 'related_player_id':None,
+                    'reference_id':log.id, 'created_at':log.created_at.isoformat()})
+
+        findings.sort(key=lambda f: f['created_at'], reverse=True)
+        return {'window_days':7, 'transactions_examined':len(sales),
+                'limited_to_latest_transactions':500, 'total_findings':len(findings),
+                'findings':findings[:100], 'disclaimer':'Сигналы для ручной проверки, не доказательства нарушений.'}
 
     @router.get('/transactions')
     def transactions(request: Request, db: Session = Depends(session)):
