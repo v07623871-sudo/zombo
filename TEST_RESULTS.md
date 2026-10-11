@@ -30,3 +30,10 @@
 - Тесты проверяют права админки, журнал и идемпотентность, сохранность старой строки при миграции, истечение рейда, новый и старый форматы счетов Stars, платёж на проверку и защиту от повторного начисления, завершение PvP по таймеру, API-покупку уникального снаряжения и прежние игровые сценарии.
 - `GET /health` проверен в существующем API-тесте, `GET /ready` — через TestClient на локальной SQLite. Живой Telegram, PostgreSQL/Railway, `pg_dump`/`pg_restore` с настоящей БД, интерфейс на устройстве и реальные платежи не проверялись. Production не изменялся.
 - Локальные зависимости ставились на Python 3.14 с `psycopg[binary]` 3.3.6, потому что закреплённый в `requirements.txt` 3.2.6 не предоставляет wheel для Python 3.14. Production рассчитан на Python 3.11 и его зависимости не менялись.
+
+## ZOMBO 0.10.0 local verification
+
+- `python -m pytest -q tests`: **62 passed** (SQLite integration and unit tests)
+- `node --check static/app.js`: passed, frontend changed minimally
+- `python -m compileall -q .`: passed
+- Production PostgreSQL concurrency, a scheduled backup run, and actual restore drill must be verified after deployment; local unit tests cannot certify them.
