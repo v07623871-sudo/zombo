@@ -32,6 +32,19 @@ jobs:
           BOT_TOKEN: ''
           TELEGRAM_WEBHOOK_SECRET: ''
         run: python -m pytest -q tests
+      - name: Pack complete Codex source snapshot
+        if: github.event_name == 'pull_request'
+        run: |
+          git archive --format=zip --prefix=ZOMBO_0.16_CODEX/ HEAD -o /tmp/ZOMBO_0.16_CODEX.zip
+          unzip -t /tmp/ZOMBO_0.16_CODEX.zip | tail -1
+      - name: Upload complete Codex source ZIP
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZOMBO_0.16_CODEX_COMPLETE
+          path: /tmp/ZOMBO_0.16_CODEX.zip
+          retention-days: 30
+          if-no-files-found: error
 
   postgres_smoke:
     runs-on: ubuntu-latest
