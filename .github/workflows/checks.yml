@@ -25,6 +25,8 @@ jobs:
         run: python -m compileall -q app.py game.py gear.py clan_missions.py security.py notifications.py world_events.py encounters.py raids.py clan_wars.py admin.py scripts tests
       - name: Verify frontend syntax
         run: node --check static/app.js
+      - name: Run deterministic 7-day economy balance simulation
+        run: python scripts/simulate_economy.py --runs 8 --days 7 --actions 12 > /tmp/zombo_economy_report.json
       - name: Run regressions and game tests
         env:
           DEMO_MODE: '1'
