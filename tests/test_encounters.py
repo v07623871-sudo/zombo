@@ -27,7 +27,7 @@ def test_exploration_resume_blocked_actions_and_replay(monkeypatch):
     with TestClient(app) as client:
         assert client.post('/api/encounters/explore', headers=headers(pid)).status_code == 400
         prepare(client, pid)
-        monkeypatch.setattr(encounters.secrets, 'choice', lambda choices: 'survivor')
+        monkeypatch.setattr(encounters.secrets, 'choice', lambda choices: choices[0])
         monkeypatch.setattr(encounters.secrets, 'randbelow', lambda max_value: 7)
         before = client.get('/api/me',headers=headers(pid)).json()
         started = client.post('/api/encounters/explore',headers=headers(pid))
