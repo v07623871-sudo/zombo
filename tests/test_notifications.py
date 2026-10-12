@@ -7,7 +7,7 @@ from tests.test_game import app
 from models import SessionLocal, Player, now
 from notifications import (
     NotificationOutbox, NotificationPreference, queue_notification,
-    claim_batch, complete_delivery,
+    claim_batch, complete_delivery, aware,
 )
 from expeditions import ExpeditionRun, ExpeditionIncident
 
@@ -54,7 +54,7 @@ def test_opt_in_delivery_retry_and_permanent_rejection():
         with SessionLocal.begin() as db:
             row = db.get(NotificationOutbox, job['id'])
             assert row.status == 'pending' and row.attempts == 1
-            assert row.scheduled_at > now() + timedelta(seconds=60)
+            assert aware(row.scheduled_at) > now() + timedelta(seconds=60)
             row.scheduled_at = now() - timedelta(seconds=5)
         [again] = claim_batch()
         assert again['id'] == job['id'] and again['lease'] != job['lease']
