@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import select, func
 from models import Clan, ClanOfficer, Player, Territory, TerritoryTax, TerritoryWar, WarFighter, now
 from game import LOCATIONS, TERRITORIES, attack_power, max_hp, talent_bonus, aware
+from notifications import queue_notification
 
 WAR_TIMEZONE = os.getenv('WAR_TIMEZONE', 'Europe/Moscow')
 try:
@@ -86,6 +87,13 @@ def _finish(db, war, winning_id, text):
     war.winner_clan_id = winning_id
     war.status = 'resolved'
     _history(war, text)
+    territory_name = TERRITORIES.get(war.territory_id, war.territory_id)
+    for fighter in _fighters(db, war):
+        clan_id = war.attacker_clan_id if fighter.side == 'attacker' else war.defender_clan_id
+        outcome = 'Победа' if clan_id == winning_id else 'Поражение'
+        queue_notification(db, fighter.player_id,
+                           f'war:{war.id}:result:{fighter.player_id}', 'clans', 'war_result',
+                           f'КВ за {territory_name} завершена. {outcome} твоего клана.')
 
 
 def _round(db, war, number):
@@ -311,6 +319,9 @@ def roster(db, officer, war_id, target_id, include=True, at=None):
     if other: raise ValueError('Нельзя участвовать сразу в двух КВ в один день')
     hp = min(700, 85 + member.level * 9 + member.stats.get('endurance',0)*4)
     db.add(WarFighter(war_id=war_id,player_id=target_id,side=side,hp=hp,max_hp=hp))
+    queue_notification(db,target_id,f'war:{war.id}:start:{target_id}',
+                       'clans','war_start',f'Ты назначен в отряд КВ. Бой начнётся в 16:00 ({WAR_TIMEZONE}).',
+                       _war_start(war).astimezone(timezone.utc))
 
 
 def war_action(db, player, war_id, action, at=None):

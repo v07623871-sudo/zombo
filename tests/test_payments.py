@@ -1,7 +1,8 @@
 from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from tests.test_game import app
-from models import Payment, Player, SessionLocal, StarInvoice, PaymentReview
+from models import Payment, Player, SessionLocal, StarInvoice, PaymentReview, ResourceLedger
 import app as server
 
 
@@ -23,6 +24,9 @@ def test_stars_webhook_is_authenticated_and_idempotent(monkeypatch):
         with SessionLocal() as db:
             assert db.get(Player,pid).zombo == 100
             assert db.get(Payment,'charge-test-986100') is not None
+            movements=db.scalars(select(ResourceLedger).where(ResourceLedger.player_id==pid,
+                ResourceLedger.resource_key=='zombo')).all()
+            assert [(row.source_event,row.delta) for row in movements]==[('stars:charge-test-986100',100)]
         messages = [x for x in sender.call_args_list if x.args[0]=='sendMessage']
         assert len(messages) == 1
         forged = {'message':{'chat':{'id':pid},'from':{'id':pid},'successful_payment':{

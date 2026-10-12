@@ -13,6 +13,7 @@ from sqlalchemy import Column, Integer, BigInteger, String, DateTime, JSON, Bool
 from sqlalchemy.orm import Session
 from models import Base, SessionLocal, Player, now
 from game import give_item, take_item, item_count, attack_power, spend_stamina, max_hp, gain_xp, talent_bonus
+from notifications import queue_notification
 
 RAIDS={
     'outpost':{'name':'Аванпост «Ноль»','level':1,'duration_hours':1,'enemy_names':['Заражённые у ворот','Коридор мясников','Командир-реанимант'],
@@ -87,6 +88,9 @@ def close_expired(db:Session,at:datetime|None=None):
     for run in db.scalars(select(RaidRun).where(RaidRun.status.in_(['lobby','active']),RaidRun.expires_at<stamp).with_for_update()):
         run.status='expired'
         raid_log(run,'Время истекло. Экспедиция не вернулась.')
+        for member_id in db.scalars(select(RaidMember.player_id).where(RaidMember.run_id==run.id)):
+            queue_notification(db,member_id,f'raid:{run.id}:deadline:{member_id}',
+                               'raids','raid_deadline',f'Рейд «{RAIDS[run.scenario]["name"]}» завершился по времени.')
     db.flush()
 
 
@@ -158,6 +162,9 @@ def install_raids(app, with_player, ready):
             if size>=MAX_PARTY:raise ValueError('Группа заполнена')
             db.add(RaidMember(run_id=r.id,player_id=p.id,hp=max_hp(p),max_hp=max_hp(p)));db.flush()
             raid_log(r,f'{p.name} вступает в группу ({size+1}/10)')
+            if size+1==MIN_PARTY:
+                queue_notification(db,r.creator_id,f'raid:{r.id}:ready:{r.creator_id}',
+                                   'raids','raid_ready',f'Группа рейда «{RAIDS[r.scenario]["name"]}» собрана. Можно начинать!')
             return {'message':'Ты присоединился к группе'}
 
     @router.post('/leave')
@@ -171,7 +178,11 @@ def install_raids(app, with_player, ready):
             db.delete(member);db.flush()
             participants=list(db.scalars(select(RaidMember).where(RaidMember.run_id==r.id).order_by(RaidMember.id)))
             if not participants:r.status='failed';raid_log(r,'Группа распущена.')
-            elif r.creator_id==p.id:r.creator_id=participants[0].player_id
+            elif r.creator_id==p.id:
+                r.creator_id=participants[0].player_id
+                if len(participants)>=MIN_PARTY:
+                    queue_notification(db,r.creator_id,f'raid:{r.id}:ready:{r.creator_id}',
+                                       'raids','raid_ready',f'Ты возглавляешь рейд «{RAIDS[r.scenario]["name"]}». Группа готова к старту.')
             return {'message':'Ты вышел из рейда'}
 
     @router.post('/launch')
@@ -187,6 +198,11 @@ def install_raids(app, with_player, ready):
             r.status='active';r.stage=0;r.started_at=now()
             r.expires_at=now()+timedelta(hours=RAIDS[r.scenario]['duration_hours'])
             start_stage(r,len(members))
+            for member in members:
+                queue_notification(db,member.player_id,f'raid:{r.id}:started:{member.player_id}',
+                                   'raids','raid_started',f'Рейд «{RAIDS[r.scenario]["name"]}» начался. Вступай в бой!')
+                queue_notification(db,member.player_id,f'raid:{r.id}:deadline:{member.player_id}',
+                                   'raids','raid_deadline',f'Время рейда «{RAIDS[r.scenario]["name"]}» истекло.',r.expires_at)
             return {'message':'Экспедиция началась. Пройдите три этапа!'}
 
     @router.post('/act')
@@ -201,6 +217,9 @@ def install_raids(app, with_player, ready):
                 # Raising here rolled the status change back with the transaction.
                 r.status='expired'
                 raid_log(r,'Время истекло. Экспедиция не вернулась.')
+                for member_id in db.scalars(select(RaidMember.player_id).where(RaidMember.run_id==r.id)):
+                    queue_notification(db,member_id,f'raid:{r.id}:deadline:{member_id}',
+                                       'raids','raid_deadline',f'Время рейда «{RAIDS[r.scenario]["name"]}» истекло.')
                 return {'message':'Время рейда вышло', 'raid':view(db,r,p.id)}
             if fighter.hp<=0:raise ValueError('Персонаж выбит. Нужна помощь врача')
             if fighter.last_action and (now()-aware(fighter.last_action)).total_seconds()<ACTION_COOLDOWN:
@@ -250,6 +269,14 @@ def install_raids(app, with_player, ready):
                 fighter.hp=max(0,fighter.hp-damage)
                 if fighter.hp==0:raid_log(r,f'☠ {p.name} выбыл из боя!')
                 if not any(m.hp>0 for m in party):r.status='failed';raid_log(r,'Группа уничтожена. Экспедиция провалена.')
+            if r.status in ('cleared','failed'):
+                for member in party:
+                    if r.status=='cleared' and member.actions<1:
+                        continue
+                    message=(f'Рейд «{config["name"]}» пройден! Забери награду.' if r.status=='cleared'
+                             else f'Рейд «{config["name"]}» провален. Группа выбыла из боя.')
+                    queue_notification(db,member.player_id,f'raid:{r.id}:{r.status}:{member.player_id}',
+                                       'raids',f'raid_{r.status}',message)
             return {'message':'Рейд завершён!' if r.status=='cleared' else f'Действие выполнено: {dealt} урона' if dealt else 'Действие выполнено','raid':view(db,r,p.id)}
 
     @router.post('/claim')

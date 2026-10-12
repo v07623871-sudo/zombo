@@ -12,12 +12,14 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy import (BigInteger, Boolean, Column, DateTime, ForeignKey,
-                        Integer, String, Text, or_, select, delete)
+                        Integer, String, Text, or_, select, delete, func)
 from sqlalchemy.orm import Session
 
 from models import Base, Player, SessionLocal, now
 
-CATEGORIES = ('expeditions', 'market')
+CATEGORIES = ('expeditions', 'market', 'raids', 'clans')
+LEGACY_CATEGORIES = ('expeditions', 'market')
+EXTRA_CATEGORIES = ('raids', 'clans')
 
 
 class NotificationPreference(Base):
@@ -25,6 +27,13 @@ class NotificationPreference(Base):
     player_id = Column(BigInteger, ForeignKey('players.id'), primary_key=True)
     expeditions = Column(Boolean, nullable=False, default=False)
     market = Column(Boolean, nullable=False, default=False)
+
+
+class NotificationCategoryOptIn(Base):
+    """New categories live in an additive table; existing preferences stay intact."""
+    __tablename__ = 'notification_category_optins'
+    player_id = Column(BigInteger, ForeignKey('players.id'), primary_key=True)
+    category = Column(String(20), primary_key=True)
 
 
 class NotificationOutbox(Base):
@@ -53,7 +62,19 @@ def aware(value: datetime | None):
 
 def settings(db: Session, player_id: int) -> dict:
     p = db.get(NotificationPreference, player_id)
-    return {key: bool(getattr(p, key)) if p else False for key in CATEGORIES}
+    enabled = {row for row in db.scalars(select(NotificationCategoryOptIn.category).where(
+        NotificationCategoryOptIn.player_id == player_id))}
+    return {**{key: bool(getattr(p, key)) if p else False for key in LEGACY_CATEGORIES},
+            **{key: key in enabled for key in EXTRA_CATEGORIES}}
+
+
+def opted_in(db: Session, player_id: int, category: str) -> bool:
+    if category in LEGACY_CATEGORIES:
+        preference = db.get(NotificationPreference, player_id)
+        return bool(preference and getattr(preference, category))
+    if category in EXTRA_CATEGORIES:
+        return db.get(NotificationCategoryOptIn, (player_id, category)) is not None
+    return False
 
 
 def queue_notification(db: Session, player_id: int, event_key: str, category: str,
@@ -61,8 +82,7 @@ def queue_notification(db: Session, player_id: int, event_key: str, category: st
     """Only opted-in users get messages. Event keys dedupe repeats during game operations."""
     if category not in CATEGORIES or not event_key or len(event_key) > 160:
         raise ValueError('Некорректный тип игрового уведомления')
-    preference = db.get(NotificationPreference, player_id)
-    if not preference or not getattr(preference, category):
+    if not opted_in(db, player_id, category):
         return False
     if db.scalar(select(NotificationOutbox.id).where(NotificationOutbox.event_key == event_key)):
         return False
@@ -75,11 +95,10 @@ def queue_notification(db: Session, player_id: int, event_key: str, category: st
 
 def _eligible(db: Session, row: NotificationOutbox, instant: datetime) -> bool:
     """Do not deliver stale choices, disabled preferences, or banned players."""
-    preference = db.get(NotificationPreference, row.player_id)
     player = db.get(Player, row.player_id)
-    if not player or player.banned or player.frozen or not preference:
+    if not player or player.banned or player.frozen:
         return False
-    if not getattr(preference, row.category, False):
+    if not opted_in(db, row.player_id, row.category):
         return False
     if row.kind == 'expedition_incident':
         from expeditions import ExpeditionIncident, ExpeditionRun
@@ -91,6 +110,64 @@ def _eligible(db: Session, row: NotificationOutbox, instant: datetime) -> bool:
         incident = db.scalar(select(ExpeditionIncident).where(ExpeditionIncident.run_id == run_id))
         return bool(run and incident and run.status == 'active' and not incident.choice
                     and run.finishes_at and aware(run.finishes_at) > instant)
+    if row.category == 'raids':
+        from raids import RaidRun, RaidMember, MIN_PARTY
+        try:
+            run_id = int(row.event_key.split(':')[1])
+        except (ValueError, IndexError):
+            return False
+        run = db.get(RaidRun, run_id)
+        member = db.scalar(select(RaidMember).where(RaidMember.run_id == run_id,
+                           RaidMember.player_id == row.player_id))
+        if not run or not member:
+            return False
+        if row.kind == 'raid_ready':
+            return bool(run.status == 'lobby' and run.creator_id == row.player_id
+                        and aware(run.expires_at) > instant and
+                        db.scalar(select(func.count()).select_from(RaidMember).where(
+                            RaidMember.run_id == run_id)) >= MIN_PARTY)
+        if row.kind == 'raid_started':
+            return run.status == 'active' and aware(run.expires_at) > instant
+        if row.kind == 'raid_deadline':
+            return run.status in ('active', 'expired') and aware(run.expires_at) <= instant
+        if row.kind == 'raid_cleared':
+            return run.status == 'cleared' and member.actions > 0 and not member.rewarded
+        if row.kind == 'raid_failed':
+            return run.status == 'failed'
+        return False
+    if row.category == 'clans':
+        if row.kind == 'weekly_reset':
+            from clan_missions import week_key
+            parts = row.event_key.split(':')
+            if len(parts) != 6 or parts[0] != 'clan' or parts[2] != 'week' or parts[4] != 'reset':
+                return False
+            try:
+                clan_id = int(parts[1])
+                recipient_id = int(parts[5])
+            except ValueError:
+                return False
+            return bool(recipient_id == row.player_id and player.clan_id == clan_id
+                        and week_key(instant) == week_key(aware(row.scheduled_at)))
+        from clan_wars import _war_start
+        from models import TerritoryWar, WarFighter
+        try:
+            war_id = int(row.event_key.split(':')[1])
+        except (ValueError, IndexError):
+            return False
+        war = db.get(TerritoryWar, war_id)
+        fighter = db.scalar(select(WarFighter).where(WarFighter.war_id == war_id,
+                            WarFighter.player_id == row.player_id))
+        if not war or not fighter:
+            return False
+        if player.clan_id != (war.attacker_clan_id if fighter.side == 'attacker' else war.defender_clan_id):
+            return False
+        if row.kind == 'war_start':
+            start = _war_start(war).astimezone(timezone.utc)
+            return (war.status in ('formation', 'battle') and start <= instant <
+                    start + timedelta(minutes=30) and fighter.hp > 0)
+        if row.kind == 'war_result':
+            return war.status == 'resolved'
+        return False
     return True
 
 
@@ -208,12 +285,19 @@ def install_notifications(app, with_player):
             raise ValueError('Неизвестная категория уведомлений')
         with db.begin():
             player = with_player(request, db)
-            entry = db.scalar(select(NotificationPreference).where(
-                NotificationPreference.player_id == player.id).with_for_update())
-            if not entry:
-                entry = NotificationPreference(player_id=player.id)
-                db.add(entry)
-            setattr(entry, body.category, body.enabled)
+            if body.category in LEGACY_CATEGORIES:
+                entry = db.scalar(select(NotificationPreference).where(
+                    NotificationPreference.player_id == player.id).with_for_update())
+                if not entry:
+                    entry = NotificationPreference(player_id=player.id)
+                    db.add(entry)
+                setattr(entry, body.category, body.enabled)
+            else:
+                entry = db.get(NotificationCategoryOptIn, (player.id, body.category))
+                if body.enabled and not entry:
+                    db.add(NotificationCategoryOptIn(player_id=player.id, category=body.category))
+                elif not body.enabled and entry:
+                    db.delete(entry)
             db.flush()
             return {'message': 'Уведомления включены' if body.enabled else 'Уведомления отключены',
                     'settings': settings(db, player.id)}

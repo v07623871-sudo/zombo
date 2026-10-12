@@ -35,7 +35,8 @@ def test_opt_in_delivery_retry_and_permanent_rejection():
         choose(client, other)
         overview = client.get('/api/notifications', headers=h(pid))
         assert overview.status_code == 200
-        assert overview.json()['settings'] == {'market': False, 'expeditions': False}
+        assert overview.json()['settings'] == {'market': False, 'expeditions': False,
+                                               'raids': False, 'clans': False}
         assert client.post('/api/notifications/settings', headers=h(pid),
                            json={'category': 'invalid', 'enabled': True}).status_code == 400
         with SessionLocal.begin() as db:

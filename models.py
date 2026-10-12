@@ -1,7 +1,8 @@
 import os
+from uuid import uuid4
 from datetime import datetime, timezone
-from sqlalchemy import create_engine, Column, Integer, BigInteger, String, Float, Boolean, Text, ForeignKey, DateTime, UniqueConstraint, JSON
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import create_engine, Column, Integer, BigInteger, String, Float, Boolean, Text, ForeignKey, DateTime, UniqueConstraint, JSON, event, insert, inspect
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 URL = os.getenv('DATABASE_URL', 'sqlite:///./zombo.db')
 if URL.startswith('postgres://'):
@@ -56,6 +57,97 @@ class ItemStack(Base):
     quantity = Column(Integer, default=1)
     equipped = Column(Boolean, default=False)
     __table_args__ = (UniqueConstraint('player_id', 'item_key', 'equipped', name='unique_inventory_stack'),)
+
+
+class ResourceLedger(Base):
+    """Committed resource movements. source_event groups rows from one transaction."""
+    __tablename__ = 'resource_ledger'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_event = Column(String(160), nullable=False)
+    sequence = Column(Integer, nullable=False)
+    player_id = Column(BigInteger, nullable=False, index=True)
+    kind = Column(String(12), nullable=False)  # currency | item | gear
+    resource_key = Column(String(80), nullable=False)
+    delta = Column(Integer, nullable=False)
+    balance_after = Column(Integer)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    __table_args__ = (UniqueConstraint('source_event', 'sequence', name='uq_resource_ledger_event_sequence'),)
+
+
+def tag_resource_operation(db: Session, label: str, *, stable: bool = False):
+    """Give all movements in this transaction a traceable, unique source ID."""
+    if stable:
+        db.info['resource_source_event'] = label[:160]
+    else:
+        db.info.setdefault('resource_source_event', f'{label[:115]}:{uuid4().hex}')
+
+
+def _before_value(obj, field):
+    history = inspect(obj).attrs[field].history
+    return history.deleted[0] if history.deleted else getattr(obj, field)
+
+
+@event.listens_for(Session, 'after_flush')
+def _record_resource_movements(db, _flush_context):
+    """Core SQL insert shares the gameplay transaction and rolls back with it."""
+    from gear import GearItem
+    rows = []
+
+    def movement(owner, kind, key, delta, balance=None):
+        if owner is not None and delta:
+            rows.append({'player_id': owner, 'kind': kind, 'resource_key': str(key),
+                         'delta': delta, 'balance_after': balance, 'created_at': now()})
+
+    for obj in db.new:
+        if isinstance(obj, Player):
+            movement(obj.id, 'currency', 'caps', obj.caps or 0, obj.caps)
+            movement(obj.id, 'currency', 'zombo', obj.zombo or 0, obj.zombo)
+        elif isinstance(obj, ItemStack):
+            movement(obj.player_id, 'item', obj.item_key, obj.quantity or 0)
+        elif isinstance(obj, GearItem):
+            movement(obj.player_id, 'gear', obj.id, 1)
+    for obj in db.dirty:
+        if isinstance(obj, Player):
+            for field in ('caps', 'zombo'):
+                if inspect(obj).attrs[field].history.has_changes():
+                    before = _before_value(obj, field)
+                    movement(obj.id, 'currency', field, obj.__dict__[field] - before, obj.__dict__[field])
+        elif isinstance(obj, ItemStack):
+            state = inspect(obj)
+            if any(state.attrs[field].history.has_changes() for field in ('quantity', 'player_id', 'item_key')):
+                old_owner, old_key, old_qty = (_before_value(obj, field) for field in ('player_id', 'item_key', 'quantity'))
+                if (old_owner, old_key) == (obj.player_id, obj.item_key):
+                    movement(obj.player_id, 'item', obj.item_key, obj.quantity - old_qty)
+                else:
+                    movement(old_owner, 'item', old_key, -old_qty)
+                    movement(obj.player_id, 'item', obj.item_key, obj.quantity)
+        elif isinstance(obj, GearItem) and inspect(obj).attrs.player_id.history.has_changes():
+            movement(_before_value(obj, 'player_id'), 'gear', obj.id, -1)
+            movement(obj.player_id, 'gear', obj.id, 1)
+    for obj in db.deleted:
+        if isinstance(obj, Player):
+            movement(obj.id, 'currency', 'caps', -_before_value(obj, 'caps'), 0)
+            movement(obj.id, 'currency', 'zombo', -_before_value(obj, 'zombo'), 0)
+        elif isinstance(obj, ItemStack):
+            movement(_before_value(obj, 'player_id'), 'item', _before_value(obj, 'item_key'),
+                     -_before_value(obj, 'quantity'))
+        elif isinstance(obj, GearItem):
+            movement(_before_value(obj, 'player_id'), 'gear', obj.id, -1)
+    if rows:
+        source = db.info.setdefault('resource_source_event', f'system:{uuid4().hex}')
+        start = db.info.get('resource_sequence', 0)
+        for offset, row in enumerate(rows):
+            row['source_event'] = source
+            row['sequence'] = start + offset
+        db.connection().execute(insert(ResourceLedger.__table__), rows)
+        db.info['resource_sequence'] = start + len(rows)
+
+
+@event.listens_for(Session, 'after_transaction_end')
+def _clear_resource_operation(db, transaction):
+    if transaction.parent is None:
+        db.info.pop('resource_source_event', None)
+        db.info.pop('resource_sequence', None)
 
 class Battle(Base):
     __tablename__ = 'battles'

@@ -1,48 +1,18 @@
-# Проверки версии 0.9.3
+# Проверки текущего пакета
 
-- `python -m pytest -q tests` — **55 passed**, 127 предупреждений об устаревающих API в локальном Python 3.14; `node --check static/app.js` — успешно.
-- Локальная Mini App в браузере с `DEMO_MODE=1` и SQLite: персонаж перемещён в Мёртвый лес, начат бой с Ползуном. После выбора головы касание портрета нанесло **15 урона в корпус**, снизило энергию **199 → 197**, обновило HP врага **45 → 30**, показало итог хода и всплывающий урон. Следующая атака кнопкой с выбранной головой нанесла **16 урона в голову**, снизила энергию **197 → 195**. Бой завершился победой после касания. Во втором бою двойное касание вызвало один ход: энергия **189 → 187**, в журнале один удар. Реальный Telegram WebView, физическое устройство и нагрузочный тест не проводились.
+Исходник: GitHub `main` `c0b0ce4bdb45cd00debd7a88a5db01a453abb7de` (версия 0.16). Работа велась в отдельной локальной ветке `codex/zombo-0.17-reliability`.
 
-## Предыдущие проверки 0.9.2
+| Проверка | Результат |
+|---|---|
+| `python -m pytest -q tests` до изменений | 87 passed, Python 3.14.3 |
+| `python -m pytest -q tests` после изменений | 113 passed, 165 deprecation warnings |
+| `python -m compileall -q app.py game.py gear.py clan_missions.py security.py notifications.py world_events.py encounters.py raids.py clan_wars.py admin.py scripts tests` | Успешно |
+| `node --check static/app.js` | Успешно |
+| `git diff --check` | Успешно |
+| `python scripts/simulate_balance.py --wins 25000 --seed 20261012` | Успешно: 4 сценария, 100 000 смоделированных побед |
 
-- Итоговый `python -m pytest -q tests` — **55 passed**, 127 предупреждений об устаревающих API на локальном Python 3.14. Новые проверки: сортировка рейтинга по уровню, убийствам и PvP, скрытие заблокированных игроков, команды Telegram `/top`, `/quests`, `/boss`, `/raid`, `/expedition` для пустого и активного состояния.
-- `node --check static/app.js` и `python -m compileall -q app.py admin.py game.py gear.py gear_market.py raids.py expeditions.py clan_wars.py story.py scripts` — успешно.
-- Локальный браузер с `DEMO_MODE=1`: вручную пройдены «База → Меню → Лидеры → Арена → Назад → Меню → Назад → База», проверены группировка меню и вид кнопки «Назад». Тест проводился на локальной SQLite; настоящий Telegram BackButton и узкие физические телефоны не проверялись.
+`tests/test_encounters.py` дополнительно проверяет новые решения, зацепки между сценами, фильтр локации, расход ресурсов и запрет повторной награды. При seed 20261012 симуляция дала в Мёртвом лесу 47.68 XP, 25.80 крышки и 7.98% выпадения экипировки на победу за солдата; в Красной пустоши — 189.08 XP, 90.31 крышки, 17.53% экипировки и 7.98% элитных целей. Это валовые величины при каждой победе, без смерти, затрат энергии, налогов, рынка и первого открытия вида; баланс игры не менялся.
 
-## Предыдущие проверки 0.9.1
+`tests/test_resource_ledger.py` проверяет начальные ресурсы, ежедневную награду, движения предметов и уникальной экипировки, общий ID операции, откат транзакции, отказ при повторе стабильного ID и права/фильтры админки. Тесты платежей и админки дополнительно сверяют запись Stars и ручной выдачи по их стабильным ID; тест рынка сверяет покупку с обеих сторон. Проверки выполнены на SQLite через приложение, не на живой PostgreSQL. Старые движения до установки 0.21 не восстановлены.
 
-- Перед исправлением добавленный `tests/test_boss_cycle.py` воспроизвёл ошибку: прямой `/api/boss/hit` после истечения старого цикла возвращал 400, если экран босса ещё не открывали. После исправления тест проходит: новый цикл начинается при ударе, прежняя запись урона остаётся в БД, рейтинг относится к новому циклу.
-- Итоговый `python -m pytest -q tests` — **54 passed**, 127 предупреждений об устаревающих API на локальном Python 3.14.
-- `node --check static/app.js` и `python -m compileall -q app.py admin.py game.py gear.py gear_market.py raids.py expeditions.py clan_wars.py story.py scripts` — успешно.
-
-## Предыдущие проверки 0.9.0
-
-- После добавления дальних экспедиций: `python -m pytest -q tests` — **53 passed**, 127 предупреждений об устаревающих API на локальном Python 3.14. Новые четыре API-теста проверяют 12-часовой цикл, роли и права, успешную/неудачную выдачу, срок набора, передачу лидерства, полный склад и защиту от повторного начисления.
-- `node --check static/app.js` — успешно. `python -m compileall -q app.py admin.py game.py gear.py gear_market.py raids.py expeditions.py clan_wars.py story.py scripts` — успешно.
-- `python scripts/migrate.py` на локальной пустой SQLite — созданы `expedition_members`, `expedition_runs`, `payment_reviews`, `star_invoices` (остальные таблицы были созданы при запуске предыдущих проверок). Миграция на копии PostgreSQL не запускалась.
-
-## Предыдущие проверки 0.8.2
-
-- Исходный запуск `python -m pytest -q tests` на локальном Python 3.14 сначала остановился при сборе из-за перезаписи `sys.modules` в `tests/test_gear_market.py`. После исправления: **42 passed**.
-- После изменений 0.8.2: `python -m pytest -q tests` — **49 passed**, 113 предупреждений об устаревающих API FastAPI/Starlette/Python 3.14. Критических ошибок нет.
-- `node --check static/app.js` — успешно.
-- `python -m compileall -q app.py admin.py game.py gear.py gear_market.py raids.py clan_wars.py story.py scripts` — успешно.
-- Тесты проверяют права админки, журнал и идемпотентность, сохранность старой строки при миграции, истечение рейда, новый и старый форматы счетов Stars, платёж на проверку и защиту от повторного начисления, завершение PvP по таймеру, API-покупку уникального снаряжения и прежние игровые сценарии.
-- `GET /health` проверен в существующем API-тесте, `GET /ready` — через TestClient на локальной SQLite. Живой Telegram, PostgreSQL/Railway, `pg_dump`/`pg_restore` с настоящей БД, интерфейс на устройстве и реальные платежи не проверялись. Production не изменялся.
-- Локальные зависимости ставились на Python 3.14 с `psycopg[binary]` 3.3.6, потому что закреплённый в `requirements.txt` 3.2.6 не предоставляет wheel для Python 3.14. Production рассчитан на Python 3.11 и его зависимости не менялись.
-
-## ZOMBO 0.10.0 local verification
-
-- `python -m pytest -q tests`: **63 passed** (SQLite integration and unit tests)
-- `node --check static/app.js`: passed, frontend changed minimally
-- `python -m compileall -q .`: passed
-- Production PostgreSQL concurrency, a scheduled backup run, and actual restore drill must be verified after deployment; local unit tests cannot certify them.
-
-
-### Production Railway backup evidence — 2026-10-11
-
-- Service `zombo-backup`: `SUCCESS`, cron `0 3 * * *` UTC. Private Railway bucket in `ams`.
-- Smoke dump log: `Backup uploaded and verified: s3://zombo-backups-0-siuksukgo/zombo-postgres/20261011T140110Z.dump (70872 bytes)`; 30-day retention active.
-- Disposable PostgreSQL restore-test service log: `Restore drill succeeded: downloaded and restored 70872 bytes; checked 3 critical tables, player rows: 6.`
-- Temporary database and restore-runner removed immediately after the drill; production database untouched.
-- Game app and PostgreSQL deployments: `SUCCESS`. Future daily cron runs still require monitoring and alerting.
+`tests/test_market_api.py::test_reciprocal_barter_preserves_both_inventories` проверяет две встречные сделки и сохранение ресурсов через FastAPI и SQLite. Пять тестов в `tests/test_elite_enemies.py` проверяют элитные модификаторы и выдачу наград. Два теста в `tests/test_raid_war_notifications.py` проверяют очередь рейда и КВ. `tests/test_clan_missions.py` и `tests/test_season_api.py` проверяют сезон и однократную выплату; `tests/test_admin.py` — доступ к диагностике. Пять тестов в `tests/test_migrate.py` проверяют сохранение игрока, журнал версий, режим без записи и отказ при потере колонок, ключей, индексов или зарегистрированной таблицы. `scripts/verify_migration_pg.py` и `scripts/verify_concurrency_pg.py` подключены к CI, но их **не удалось выполнить локально**, поскольку на этой машине нет отдельного PostgreSQL или Docker. Результат будущего CI запуска требуется проверить до переноса в production. Настоящие Telegram Android/iOS, платежи Stars, Railway и живые данные не проверялись и не изменялись.

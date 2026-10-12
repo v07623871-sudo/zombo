@@ -22,7 +22,7 @@ jobs:
         run: |
           python -m pip install -r requirements.txt pytest
       - name: Compile Python sources
-        run: python -m compileall -q app.py game.py gear.py clan_missions.py security.py notifications.py world_events.py encounters.py tests
+        run: python -m compileall -q app.py game.py gear.py clan_missions.py security.py notifications.py world_events.py encounters.py raids.py clan_wars.py admin.py scripts tests
       - name: Verify frontend syntax
         run: node --check static/app.js
       - name: Run regressions and game tests
@@ -57,6 +57,14 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
       - run: python -m pip install -r requirements.txt
+      - name: PostgreSQL additive migration and retained player data
+        env:
+          DATABASE_URL: postgresql+psycopg://zombo_ci:zombo_ci_password@localhost:5432/zombo_ci
+          ZOMBO_TEST_DATABASE: '1'
+          BOT_TOKEN: ''
+          DEMO_MODE: '1'
+          PUBLIC_URL: ''
+        run: PYTHONPATH=. python scripts/verify_migration_pg.py
       - name: Real PostgreSQL gameplay and clan API smoke test
         env:
           DATABASE_URL: postgresql+psycopg://zombo_ci:zombo_ci_password@localhost:5432/zombo_ci
@@ -65,3 +73,12 @@ jobs:
           PUBLIC_URL: ''
           TELEGRAM_WEBHOOK_SECRET: ''
         run: PYTHONPATH=. python scripts/verify_clan_pg.py
+      - name: PostgreSQL concurrent economy and reward checks
+        env:
+          DATABASE_URL: postgresql+psycopg://zombo_ci:zombo_ci_password@localhost:5432/zombo_ci
+          ZOMBO_TEST_DATABASE: '1'
+          BOT_TOKEN: ''
+          DEMO_MODE: '1'
+          PUBLIC_URL: ''
+          TELEGRAM_WEBHOOK_SECRET: ''
+        run: PYTHONPATH=. python scripts/verify_concurrency_pg.py

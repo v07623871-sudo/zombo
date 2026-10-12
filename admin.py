@@ -4,16 +4,18 @@ from collections import defaultdict
 from datetime import timedelta
 from io import StringIO
 import csv
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, func, or_, select
 from sqlalchemy.orm import Session
 
-from models import (Base, SessionLocal, Player, ItemStack, Clan, Battle, MarketLot,
+from models import (Base, SessionLocal, Player, ItemStack, Clan, Battle, MarketLot, ResourceLedger, tag_resource_operation,
                     PvPMatch, Payment, PaymentReview, TerritoryWar, now)
 from gear import GearItem, gear_view
 from gear_market import GearSale
 from raids import RaidRun, RaidMember
+from expeditions import ExpeditionRun
+from notifications import NotificationOutbox, CATEGORIES
 from story import StoryProgress
 from game import ITEMS, gain_xp, give_item, item_count, take_item
 
@@ -55,6 +57,7 @@ def install_admin(app, identify, admin_ids):
             yield db
 
     def actor(request: Request, db: Session) -> Player:
+        tag_resource_operation(db, f'{request.method}:{request.url.path}')
         pid = int(identify(request.headers.get('authorization', ''))['id'])
         if pid not in admin_ids:
             raise HTTPException(403, 'Только администратор')
@@ -106,6 +109,56 @@ def install_admin(app, identify, admin_ids):
             'caps_in_wallets': db.scalar(select(func.coalesce(func.sum(Player.caps), 0))) or 0,
             'zombo_in_wallets': db.scalar(select(func.coalesce(func.sum(Player.zombo), 0))) or 0,
         }
+
+    @router.get('/operations')
+    def operations(request: Request, db: Session = Depends(session)):
+        """Bounded support counters; no message bodies or payment secrets."""
+        actor(request, db)
+        instant = now()
+        count = lambda model, *conditions: db.scalar(select(func.count()).select_from(model).where(*conditions)) or 0
+        oldest = db.scalar(select(func.min(NotificationOutbox.scheduled_at)).where(
+            NotificationOutbox.status == 'pending', NotificationOutbox.scheduled_at <= instant))
+        return {
+            'raids_lobby': count(RaidRun, RaidRun.status == 'lobby'),
+            'raids_active': count(RaidRun, RaidRun.status == 'active'),
+            'raids_overdue': count(RaidRun, RaidRun.status == 'active', RaidRun.expires_at < instant),
+            'expeditions_active': count(ExpeditionRun, ExpeditionRun.status == 'active'),
+            'expeditions_overdue': count(ExpeditionRun, ExpeditionRun.status == 'active', ExpeditionRun.finishes_at < instant),
+            'notifications_pending': count(NotificationOutbox, NotificationOutbox.status == 'pending'),
+            'notifications_due': count(NotificationOutbox, NotificationOutbox.status == 'pending', NotificationOutbox.scheduled_at <= instant),
+            'notifications_sending': count(NotificationOutbox, NotificationOutbox.status == 'sending'),
+            'notifications_stuck': count(NotificationOutbox, NotificationOutbox.status == 'sending', NotificationOutbox.lease_until < instant),
+            'notifications_failed_24h': count(NotificationOutbox, NotificationOutbox.status == 'failed', NotificationOutbox.finished_at >= instant - timedelta(days=1)),
+            'oldest_due_at': oldest.isoformat() if oldest else None,
+            'payment_reviews': count(PaymentReview),
+            'checked_at': instant.isoformat(),
+        }
+
+    @router.get('/notifications')
+    def notification_log(request: Request, status: str = '', category: str = '',
+                         player_id: int | None = None, page: int = 1,
+                         db: Session = Depends(session)):
+        actor(request, db)
+        if status and status not in ('pending', 'sending', 'sent', 'skipped', 'failed'):
+            raise HTTPException(422, 'Неизвестный статус доставки')
+        if category and category not in CATEGORIES:
+            raise HTTPException(422, 'Неизвестная категория уведомлений')
+        if player_id is not None and not 0 < player_id <= 9223372036854775807:
+            raise HTTPException(422, 'Неверный ID игрока')
+        page = max(1, min(500, page))
+        query = select(NotificationOutbox)
+        if status: query = query.where(NotificationOutbox.status == status)
+        if category: query = query.where(NotificationOutbox.category == category)
+        if player_id is not None: query = query.where(NotificationOutbox.player_id == player_id)
+        rows = db.scalars(query.order_by(NotificationOutbox.id.desc())
+                          .offset((page - 1) * 30).limit(31)).all()
+        return {'page': page, 'has_next': len(rows) > 30,
+                'items': [{'id': row.id, 'player_id': row.player_id,
+                           'category': row.category, 'kind': row.kind,
+                           'status': row.status, 'attempts': row.attempts,
+                           'scheduled_at': row.scheduled_at.isoformat(),
+                           'finished_at': row.finished_at.isoformat() if row.finished_at else None,
+                           'last_error': row.last_error} for row in rows[:30]]}
 
     @router.get('/players')
     def players(request: Request, q: str = '', hero_class: str = '', min_level: int = 1,
@@ -182,6 +235,7 @@ def install_admin(app, identify, admin_ids):
                 return existing
             if body.amount == 0:
                 raise HTTPException(400, 'Количество должно быть ненулевым')
+            tag_resource_operation(db, f'admin-resource:{body.request_id}', stable=True)
             if body.field == 'material':
                 key = body.item_key or ''
                 if key not in ITEMS or ITEMS[key].get('type') not in ('material', 'resource'):
@@ -334,5 +388,25 @@ def install_admin(app, identify, admin_ids):
                                      'created_at': p.created_at.isoformat()} for p in reviews],
                 'raid_rewards': [{'run_id': r.run_id, 'player_id': r.player_id,
                                   'contribution': r.contribution} for r in raids]}
+
+    @router.get('/ledger')
+    def resource_ledger(request: Request, player_id: int | None = Query(default=None, ge=1, le=9223372036854775807),
+                        kind: str | None = Query(default=None, pattern=r'^(currency|item|gear)$'),
+                        page: int = Query(default=1, ge=1, le=1000),
+                        db: Session = Depends(session)):
+        actor(request, db)
+        statement = select(ResourceLedger)
+        if player_id is not None:
+            statement = statement.where(ResourceLedger.player_id == player_id)
+        if kind:
+            statement = statement.where(ResourceLedger.kind == kind)
+        rows = db.scalars(statement.order_by(ResourceLedger.id.desc())
+                          .offset((page - 1) * 50).limit(51)).all()
+        return {'items': [{'id': row.id, 'source_event': row.source_event,
+                           'player_id': row.player_id, 'kind': row.kind,
+                           'resource_key': row.resource_key, 'delta': row.delta,
+                           'balance_after': row.balance_after,
+                           'created_at': row.created_at.isoformat()} for row in rows[:50]],
+                'page': page, 'has_next': len(rows) > 50}
 
     app.include_router(router)
