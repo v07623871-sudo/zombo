@@ -17,6 +17,10 @@ def h(pid):
 
 
 def create_class(client, pid):
+    state = client.get('/api/me', headers=h(pid))
+    assert state.status_code == 200, state.text
+    if state.json()['class']:
+        return
     response = client.post('/api/class', headers=h(pid), json={'key': 'soldier'})
     assert response.status_code == 200, response.text
 
