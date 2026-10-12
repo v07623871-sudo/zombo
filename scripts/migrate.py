@@ -31,6 +31,7 @@ MIGRATIONS = (
         'clan_season_results', 'clan_season_reward_claims'})),
     ('20261012_04_encounter_clues', frozenset({'encounter_clues'})),
     ('20261012_05_resource_ledger', frozenset({'resource_ledger'})),
+    ('20261012_06_clan_treasury_ledger', frozenset({'clan_treasury_ledger'})),
 )
 registry = MetaData()
 schema_migrations = Table('schema_migrations', registry,
