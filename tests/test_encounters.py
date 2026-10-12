@@ -39,7 +39,7 @@ def test_exploration_resume_blocked_actions_and_replay(monkeypatch):
         assert set(info['encounter']['choices']) == {'help','leave'}
         assert client.get('/api/me',headers=headers(pid)).json()['encounter_pending']
         assert client.post('/api/encounters/explore',headers=headers(pid)).status_code == 400
-        assert client.post('/api/travel',headers=headers(pid],json={'key':'base'}).status_code == 400
+        assert client.post('/api/travel',headers=headers(pid),json={'key':'base'}).status_code == 400
         assert client.post('/api/scavenge',headers=headers(pid]).status_code == 400
         assert client.post('/api/combat/start',headers=headers(pid]).status_code == 400
         assert client.post('/api/encounters/resolve',headers=headers(pid],
