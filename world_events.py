@@ -90,6 +90,9 @@ def record_action(db: Session, player: Player, type: str):
         participation = WorldEventParticipation(event_id=event.id, player_id=player.id,
                                                    actions=0, claimed=False)
         db.add(participation)
+        # SessionLocal disables autoflush. Persist the unique membership before
+        # another event action in the same transaction can query it.
+        db.flush()
     participation.actions += 1
     event.total_progress += 1
     return event
