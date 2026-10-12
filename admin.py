@@ -409,6 +409,17 @@ def install_admin(app, identify, admin_ids):
                            'created_at': row.created_at.isoformat()} for row in rows[:50]],
                 'page': page, 'has_next': len(rows) > 50}
 
+    @router.get('/economy/flows')
+    def economy_flows(request: Request,
+                      days: int = Query(default=7, ge=1, le=90),
+                      db: Session = Depends(session)):
+        """Read-only period report; never returns private payments or player rows."""
+        actor(request, db)
+        from economy import flow_report
+        if days not in (1, 7, 30, 90):
+            raise HTTPException(422, 'Выбери период: 1, 7, 30 или 90 дней')
+        return flow_report(db, days)
+
     @router.get('/treasury-ledger')
     def treasury_ledger(request: Request,
                         clan_id: int | None = Query(default=None, ge=1, le=2147483647),

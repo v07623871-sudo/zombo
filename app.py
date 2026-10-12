@@ -133,7 +133,7 @@ app=FastAPI(title='ZOMBO · After the Fall',version='0.22.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.22.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.23.0'}
 
 @app.get('/ready')
 def readiness():
