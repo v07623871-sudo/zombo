@@ -156,7 +156,8 @@ def install_world_events(app, with_player, identify, admin_ids):
             p = with_player(request, db)
             instant = now()
             events = db.scalars(select(WorldEvent).where(
-                WorldEvent.starts_at <= instant + timedelta(days=7))
+                WorldEvent.starts_at <= instant + timedelta(days=7),
+                WorldEvent.ends_at >= instant - timedelta(days=7))
                 .order_by(WorldEvent.id.desc()).limit(40)).all()
             # Keep recently ended events and scheduled events, bounded by 40 rows.
             return {'types': EVENT_TYPES,
