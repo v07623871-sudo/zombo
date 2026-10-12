@@ -55,7 +55,7 @@ def test_admin_event_auth_schedule_dedup_and_stop():
             assert new_event(client, aid, kind='supplies', location='forest',
                              delay=50).status_code == 400
             # Different territory may host its own event.
-            next_event = new_event(client, aid, location='city')
+            next_event = new_event(client, aid, location='hospital')
             assert next_event.status_code == 200, next_event.text
             admin_list = client.get('/api/admin/world-events', headers=h(aid))
             assert admin_list.status_code == 200
@@ -69,7 +69,7 @@ def test_admin_event_auth_schedule_dedup_and_stop():
                                      'request_id':str(uuid4())})
             assert stopped.status_code == 200, stopped.text
             assert new_event(client, aid, kind='horde', location='forest',
-                             delay=45).status_code == 200
+                             delay=300).status_code == 200
             with SessionLocal.begin() as db:
                 assert db.scalar(select(AdminAudit).where(
                     AdminAudit.after == f'stopped:{event_id}')) is not None
