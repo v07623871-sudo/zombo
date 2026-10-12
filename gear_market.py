@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, Index, JSON, select, func
 from sqlalchemy.orm import Session
 
+from notifications import queue_notification
 from models import Base, Player, SessionLocal, now
 from gear import GearItem, MAX_GEAR, gear_view
 
@@ -60,6 +61,10 @@ def expire_sales(db: Session, limit: int = 100) -> int:
             item.player_id = sale.seller_id
         sale.status = 'expired'
         sale.closed_at = instant
+        queue_notification(
+            db, sale.seller_id, f'gear-sale:{sale.id}:expired',
+            'market', 'gear_sale_expired',
+            f'📦 Срок продажи лота #{sale.id} истёк. Снаряжение вернулось в арсенал.')
         count += 1
     return count
 
@@ -115,6 +120,11 @@ def buy_gear(db: Session, buyer: Player, sale_id: int) -> tuple[GearSale, GearIt
     sale.buyer_id = buyer.id
     sale.status = 'sold'
     sale.closed_at = now()
+    queue_notification(
+        db, sale.seller_id, f'gear-sale:{sale.id}:sold',
+        'market', 'gear_sale_sold',
+        f'🪙 Снаряжение из лота #{sale.id} продано за {sale.price} крышек. '
+        f'На баланс начислено {proceeds} крышек (комиссия {fee}).')
     return sale, item
 
 
