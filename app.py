@@ -2,6 +2,7 @@ import os, hmac, hashlib, json, random, re, secrets, logging, asyncio
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from security import ApiQuota, TelegramReceipt, TooManyActions, enforce_quota, claim_update, finish_update, prune_update_receipts
+from world_events import install_world_events, record_action as record_world_action
 from notifications import (install_notifications, claim_batch, complete_delivery,
                            cleanup as cleanup_notifications)
 from urllib.parse import parse_qsl
@@ -117,11 +118,11 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.14.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.15.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.14.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.15.0'}
 
 @app.get('/ready')
 def readiness():
@@ -263,6 +264,7 @@ install_gear_market(app, with_player, ready, identify)
 install_clan_missions(app, with_player, ready)
 install_admin(app, identify, ADMIN_IDS)
 install_notifications(app, with_player)
+install_world_events(app, with_player, identify, ADMIN_IDS)
 
 @app.post('/api/stat')
 def upgrade_stat(body:Choice,request:Request,db:Session=Depends(db_session)):
@@ -331,6 +333,9 @@ def scavenge(request:Request,db:Session=Depends(db_session)):
         key=random.choice([loc['material'],loc['material'],'cloth','food','water','wood','metal'])
         qty=random.randint(1,3)
         qty+=min(3,int(talent_bonus(p,'scavenge')*4))
+        world_supply=record_world_action(db,p,'supplies')
+        if world_supply:
+            qty+=1
         give_item(db,p.id,key,qty);progress(db,p.id,'scavenge')
         # Searching sometimes yields unique equipment in addition to stackable materials.
         if random.random()<.035:

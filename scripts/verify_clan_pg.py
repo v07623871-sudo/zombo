@@ -86,3 +86,46 @@ with TestClient(app) as api:
     assert after - before == 180 * 85 // 100
     assert api.post('/api/expeditions/claim', headers=leader, json={'id': run_id}).status_code == 400
     print('PostgreSQL timed expedition incident and one-time rewards: PASS')
+
+# PostgreSQL world-event smoke: role checks, transactionally saved team progress,
+# explicit scheduled end and exactly-once reward.
+from uuid import uuid4
+from app import ADMIN_IDS
+from world_events import WorldEvent, WorldEventParticipation, record_action, EVENT_TYPES
+
+admin_id=9927000101
+ADMIN_IDS.add(admin_id)
+with TestClient(app) as api:
+    admin_header={'Authorization':f'demo:{admin_id}'}
+    user_header={'Authorization':f'demo:{crew_ids[0]}'}
+    with SessionLocal.begin() as db:
+        db.get(Player,crew_ids[0]).location='city'
+    denied=api.post('/api/admin/world-events/create',headers=user_header,json={
+        'type':'supplies','location':'city','starts_in_minutes':0,'duration_minutes':60,
+        'reason':'PostgreSQL smoke event','request_id':str(uuid4())})
+    assert denied.status_code==403,denied.text
+    r=api.post('/api/admin/world-events/create',headers=admin_header,json={
+        'type':'supplies','location':'city','starts_in_minutes':0,'duration_minutes':60,
+        'reason':'PostgreSQL smoke event','request_id':str(uuid4())})
+    assert r.status_code==200,('world event create',r.text)
+    event_id=r.json()['id']
+    with SessionLocal.begin() as db:
+        p=db.get(Player,crew_ids[0])
+        for _ in range(EVENT_TYPES['supplies']['goal']):
+            assert record_action(db,p,'supplies') is not None
+    with SessionLocal.begin() as db:
+        event=db.get(WorldEvent,event_id)
+        assert event.total_progress==EVENT_TYPES['supplies']['goal']
+        event.ends_at=now()-timedelta(seconds=1)
+    before=api.get('/api/me',headers=user_header).json()['caps']
+    r=api.post('/api/world-events/claim',headers=user_header,json={'id':event_id})
+    assert r.status_code==200,('world event reward',r.text)
+    assert api.get('/api/me',headers=user_header).json()['caps']-before==EVENT_TYPES['supplies']['bonus_caps']
+    assert api.post('/api/world-events/claim',headers=user_header,json={'id':event_id}).status_code==400
+    with SessionLocal.begin() as db:
+        part=db.scalar(select(WorldEventParticipation).where(
+            WorldEventParticipation.event_id==event_id,
+            WorldEventParticipation.player_id==crew_ids[0]))
+        assert part.claimed is True
+    print('PostgreSQL global event scheduling and one-time claim: PASS')
+ADMIN_IDS.discard(admin_id)

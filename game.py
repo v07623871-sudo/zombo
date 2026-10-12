@@ -385,6 +385,11 @@ def combat_round(db,p,b,action,zone='body'):
         if first_discovery:
             xp+=25
             caps+=15
+        from world_events import record_action as record_world_action
+        world_horde=record_world_action(db,p,'horde')
+        if world_horde:
+            xp+=max(1,xp//5)
+            caps+=max(1,caps//5)
         xp_levels=gain_xp(p,xp)
         # Territorial tribute comes from the zombie reward, not from thin air.
         from clan_wars import zombie_tax
@@ -454,6 +459,10 @@ def spawn_battle(db,p):
     enemy=ENEMIES[key]
     hp=max(15,int((30+threat*18+random.randint(0,20))*enemy['hp']))
     damage=max(2,int((3+threat*3)*enemy['damage']))
+    from world_events import active_event
+    if active_event(db,p.location,'horde'):
+        hp=max(1,round(hp*1.25))
+        damage=max(2,round(damage*1.15))
     b=Battle(player_id=p.id,kind='zombie:'+key,enemy=enemy['name'],enemy_hp=hp,enemy_max_hp=hp,enemy_damage=damage,log=['Вдалеке слышен хрип...'])
     db.add(b);db.flush()
     record_enemy(p,key)
