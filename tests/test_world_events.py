@@ -33,7 +33,7 @@ def new_event(client, aid, kind='supplies', location='city', delay=0, duration=1
 
 
 def test_admin_event_auth_schedule_dedup_and_stop():
-    aid, stranger = 987101, 987102
+    aid, stranger = 1998701101, 1998701102
     server.ADMIN_IDS.add(aid)
     try:
         with TestClient(app) as client:
@@ -78,7 +78,7 @@ def test_admin_event_auth_schedule_dedup_and_stop():
 
 
 def test_military_cargo_scavenge_progress_and_one_time_claim(monkeypatch):
-    aid, pid, outsider = 987201, 987202, 987203
+    aid, pid, outsider = 1998701201, 1998701202, 1998701203
     server.ADMIN_IDS.add(aid)
     try:
         with TestClient(app) as client:
@@ -142,7 +142,7 @@ def test_military_cargo_scavenge_progress_and_one_time_claim(monkeypatch):
 
 
 def test_horde_changes_actual_zombie_combat_and_rewards(monkeypatch):
-    aid, pid = 987301, 987302
+    aid, pid = 1998701301, 1998701302
     server.ADMIN_IDS.add(aid)
     try:
         with TestClient(app) as client:
