@@ -74,6 +74,27 @@ class ResourceLedger(Base):
     __table_args__ = (UniqueConstraint('source_event', 'sequence', name='uq_resource_ledger_event_sequence'),)
 
 
+class ClanTreasuryLedger(Base):
+    """Committed clan treasury movements. Separate owner IDs from player ledger."""
+    __tablename__ = 'clan_treasury_ledger'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    clan_id = Column(Integer, nullable=False, index=True)
+    source_event = Column(String(160), nullable=False)
+    sequence = Column(Integer, nullable=False)
+    delta = Column(Integer, nullable=False)
+    balance_after = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    __table_args__ = (UniqueConstraint('source_event', 'sequence', name='uq_clan_treasury_ledger_event_sequence'),)
+
+
+def _total_experience(level: int, xp: int) -> int:
+    """Lifetime XP equivalent, handling level-up carry without negative phantom entries."""
+    total = int(xp or 0)
+    for current_level in range(1, max(1, int(level or 1))):
+        total += int(150 * current_level ** 1.75 + 300 * current_level)
+    return total
+
+
 def tag_resource_operation(db: Session, label: str, *, stable: bool = False):
     """Give all movements in this transaction a traceable, unique source ID."""
     if stable:
@@ -92,6 +113,12 @@ def _record_resource_movements(db, _flush_context):
     """Core SQL insert shares the gameplay transaction and rolls back with it."""
     from gear import GearItem
     rows = []
+    clan_rows = []
+
+    def treasury_movement(clan_id, delta, balance):
+        if clan_id is not None and delta:
+            clan_rows.append({'clan_id': clan_id, 'delta': delta,
+                              'balance_after': balance, 'created_at': now()})
 
     def movement(owner, kind, key, delta, balance=None):
         if owner is not None and delta:
@@ -102,6 +129,10 @@ def _record_resource_movements(db, _flush_context):
         if isinstance(obj, Player):
             movement(obj.id, 'currency', 'caps', obj.caps or 0, obj.caps)
             movement(obj.id, 'currency', 'zombo', obj.zombo or 0, obj.zombo)
+            lifetime_xp = _total_experience(obj.level, obj.xp)
+            movement(obj.id, 'xp', 'lifetime', lifetime_xp, lifetime_xp)
+        elif isinstance(obj, Clan):
+            treasury_movement(obj.id, obj.treasury or 0, obj.treasury or 0)
         elif isinstance(obj, ItemStack):
             movement(obj.player_id, 'item', obj.item_key, obj.quantity or 0)
         elif isinstance(obj, GearItem):
@@ -112,6 +143,15 @@ def _record_resource_movements(db, _flush_context):
                 if inspect(obj).attrs[field].history.has_changes():
                     before = _before_value(obj, field)
                     movement(obj.id, 'currency', field, obj.__dict__[field] - before, obj.__dict__[field])
+            state = inspect(obj)
+            if any(state.attrs[field].history.has_changes() for field in ('xp', 'level')):
+                previous = _total_experience(_before_value(obj, 'level'), _before_value(obj, 'xp'))
+                current = _total_experience(obj.level, obj.xp)
+                movement(obj.id, 'xp', 'lifetime', current - previous, current)
+        elif isinstance(obj, Clan):
+            if inspect(obj).attrs.treasury.history.has_changes():
+                before = _before_value(obj, 'treasury') or 0
+                treasury_movement(obj.id, (obj.treasury or 0) - before, obj.treasury or 0)
         elif isinstance(obj, ItemStack):
             state = inspect(obj)
             if any(state.attrs[field].history.has_changes() for field in ('quantity', 'player_id', 'item_key')):
@@ -128,6 +168,9 @@ def _record_resource_movements(db, _flush_context):
         if isinstance(obj, Player):
             movement(obj.id, 'currency', 'caps', -_before_value(obj, 'caps'), 0)
             movement(obj.id, 'currency', 'zombo', -_before_value(obj, 'zombo'), 0)
+            movement(obj.id, 'xp', 'lifetime', -_total_experience(obj.level, obj.xp), 0)
+        elif isinstance(obj, Clan):
+            treasury_movement(obj.id, -(obj.treasury or 0), 0)
         elif isinstance(obj, ItemStack):
             movement(_before_value(obj, 'player_id'), 'item', _before_value(obj, 'item_key'),
                      -_before_value(obj, 'quantity'))
@@ -141,6 +184,14 @@ def _record_resource_movements(db, _flush_context):
             row['sequence'] = start + offset
         db.connection().execute(insert(ResourceLedger.__table__), rows)
         db.info['resource_sequence'] = start + len(rows)
+    if clan_rows:
+        source = db.info.setdefault('resource_source_event', f'system:{uuid4().hex}')
+        start = db.info.get('treasury_sequence', 0)
+        for offset, row in enumerate(clan_rows):
+            row['source_event'] = source
+            row['sequence'] = start + offset
+        db.connection().execute(insert(ClanTreasuryLedger.__table__), clan_rows)
+        db.info['treasury_sequence'] = start + len(clan_rows)
 
 
 @event.listens_for(Session, 'after_transaction_end')
@@ -148,6 +199,7 @@ def _clear_resource_operation(db, transaction):
     if transaction.parent is None:
         db.info.pop('resource_source_event', None)
         db.info.pop('resource_sequence', None)
+        db.info.pop('treasury_sequence', None)
 
 class Battle(Base):
     __tablename__ = 'battles'
