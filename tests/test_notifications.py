@@ -156,3 +156,37 @@ def test_outbox_remains_unchanged_when_operation_rolls_back():
         with SessionLocal.begin() as db:
             assert not db.scalar(select(NotificationOutbox.id).where(
                 NotificationOutbox.event_key == 'test:rollback'))
+
+
+def test_gear_sale_and_expiry_queue_once_with_real_escrow():
+    from gear import create_gear
+    from gear_market import list_gear, buy_gear, expire_sales
+    seller_id, buyer_id = 986401, 986402
+    with TestClient(app) as client:
+        choose(client, seller_id)
+        choose(client, buyer_id)
+        enable(client, seller_id, 'market')
+        with SessionLocal.begin() as db:
+            seller = db.get(Player, seller_id)
+            buyer = db.get(Player, buyer_id)
+            buyer.caps = 2000
+            first = create_gear(db, seller_id, 'pistol', 'rare')
+            second = create_gear(db, seller_id, 'vest', 'rare')
+            sale1 = list_gear(db, seller, first.id, 700)
+            sale2 = list_gear(db, seller, second.id, 800)
+            one, two = sale1.id, sale2.id
+        with SessionLocal.begin() as db:
+            buy_gear(db, db.get(Player, buyer_id), one)
+            expired = db.scalar(select(__import__('gear_market').GearSale).where(
+                __import__('gear_market').GearSale.id == two))
+            expired.expires_at = now() - timedelta(seconds=1)
+            assert expire_sales(db) == 1
+            assert expire_sales(db) == 0
+        with SessionLocal.begin() as db:
+            rows = db.scalars(select(NotificationOutbox).where(
+                NotificationOutbox.player_id == seller_id)).all()
+            assert sorted(row.kind for row in rows) == ['gear_sale_expired', 'gear_sale_sold']
+            assert all(row.status == 'pending' for row in rows)
+            assert all(row.message for row in rows)
+            assert db.get(Player, seller_id).caps >= 150
+            assert db.get(Player, buyer_id).caps == 1300
