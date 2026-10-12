@@ -179,6 +179,7 @@ def test_gear_sale_and_expiry_queue_once_with_real_escrow():
             buy_gear(db, db.get(Player, buyer_id), one)
             expired = db.scalar(select(GearSale).where(GearSale.id == two))
             expired.expires_at = now() - timedelta(seconds=1)
+            db.flush()  # SessionLocal has autoflush disabled.
             assert expire_sales(db) == 1
             assert expire_sales(db) == 0
         with SessionLocal.begin() as db:
