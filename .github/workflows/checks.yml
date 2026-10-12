@@ -22,7 +22,7 @@ jobs:
         run: |
           python -m pip install -r requirements.txt pytest
       - name: Compile Python sources
-        run: python -m compileall -q app.py game.py gear.py clan_missions.py security.py notifications.py tests
+        run: python -m compileall -q app.py game.py gear.py clan_missions.py security.py notifications.py world_events.py tests
       - name: Verify frontend syntax
         run: node --check static/app.js
       - name: Run regressions and game tests
