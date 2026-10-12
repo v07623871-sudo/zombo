@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from game import gain_xp, give_item
 from gear import create_gear, gear_stats
 from models import Base, Player, SessionLocal, now
+from notifications import queue_notification
 
 SCENARIOS = {
     'relay': {'name': 'Мёртвая радиостанция', 'level': 5, 'xp': 260,
@@ -313,6 +314,22 @@ def install_expeditions(app, with_player, ready):
             run.status = 'active'
             run.started_at = now()
             run.finishes_at = run.started_at + timedelta(hours=RUN_HOURS)
+            scenario_name = SCENARIOS[run.scenario]['name']
+            for member in crew:
+                queue_notification(
+                    db, member.player_id, f'expedition:{run.id}:launch:{member.player_id}',
+                    'expeditions', 'expedition_started',
+                    f'🧭 Экспедиция «{scenario_name}» началась. Возвращение через 12 часов.')
+                queue_notification(
+                    db, member.player_id, f'expedition:{run.id}:finish:{member.player_id}',
+                    'expeditions', 'expedition_finished',
+                    f'📦 Экспедиция «{scenario_name}» завершилась. Проверь результат и получи награду.',
+                    scheduled_at=run.finishes_at)
+            queue_notification(
+                db, run.creator_id, f'expedition:{run.id}:incident:{run.creator_id}',
+                'expeditions', 'expedition_incident',
+                f'📻 В экспедиции «{scenario_name}» возникла проблема. Ты лидер: выбери решение для отряда.',
+                scheduled_at=run.started_at + timedelta(hours=EVENT_DELAY_HOURS))
             return {'message': f'Отряд вышел. Возвращение через {RUN_HOURS} часов.'}
 
     @router.post('/event')

@@ -2,6 +2,8 @@ import os, hmac, hashlib, json, random, re, secrets, logging, asyncio
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from security import ApiQuota, TelegramReceipt, TooManyActions, enforce_quota, claim_update, finish_update, prune_update_receipts
+from notifications import (install_notifications, claim_batch, complete_delivery,
+                           cleanup as cleanup_notifications)
 from urllib.parse import parse_qsl
 import httpx
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
@@ -87,21 +89,39 @@ async def _war_clock_loop():
     while True:
         try:
             await asyncio.to_thread(_war_clock_tick)
+            if BOT_TOKEN:
+                await _deliver_notifications()
         except Exception:
             logger.exception('Clan war and territorial tax scheduler failed')
         await asyncio.sleep(25)
+
+async def _deliver_notifications():
+    """Sending is outside game transactions. Failures are retried asynchronously."""
+    for job in await asyncio.to_thread(claim_batch):
+        payload = {'chat_id': job['player_id'], 'text': job['message']}
+        if PUBLIC_URL:
+            payload['reply_markup'] = {'inline_keyboard': [[
+                {'text': '🎮 Открыть ZOMBO', 'web_app': {'url': PUBLIC_URL}}]]}
+        try:
+            result = await telegram_api('sendMessage', payload)
+        except Exception:
+            logger.exception('Notification sender failed')
+            result = {'ok': False}
+        await asyncio.to_thread(complete_delivery, job['id'], job['lease'], result)
+
 
 def _war_clock_tick():
     with SessionLocal.begin() as session:
         refresh_world(session)
         expire_sales(session)
         prune_update_receipts(session)
+        cleanup_notifications(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.11.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.14.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.11.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.14.0'}
 
 @app.get('/ready')
 def readiness():
@@ -242,6 +262,7 @@ install_story(app, with_player, ready)
 install_gear_market(app, with_player, ready, identify)
 install_clan_missions(app, with_player, ready)
 install_admin(app, identify, ADMIN_IDS)
+install_notifications(app, with_player)
 
 @app.post('/api/stat')
 def upgrade_stat(body:Choice,request:Request,db:Session=Depends(db_session)):
