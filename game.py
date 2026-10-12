@@ -196,6 +196,28 @@ ENEMIES = {
     'reaper': {'name':'Жнец','tier':5,'min_threat':5,'family':'Элита','trait':'frenzy','skill':'Последняя охота','hp':1.80,'damage':1.60,'reward':2.80,'armor':.17,'color':'#d17e7d','lore':'Выжил там, где погибли даже мутанты.'},
 }
 
+# An elite roll is stored in Battle.log for the entire fight. Old battles have
+# no marker and keep their original rules; no column or asset migration is needed.
+ELITE_MODIFIERS = {
+    'armor': {'name':'Костяная броня','hint':'Дополнительная защита; целься в голову или ноги.'},
+    'frenzy': {'name':'Бешенство','hint':'Каждый ответный удар заражённого сильнее.'},
+    'venom': {'name':'Яд','hint':'Каждый третий удар отнимает энергию. Защита спасает от яда.'},
+    'regen': {'name':'Регенерация','hint':'Восстанавливает здоровье после своего хода.'},
+}
+
+def choose_elite_modifier(threat, rng=None):
+    rng = rng or random
+    if threat < 2 or rng.random() >= min(.09, .03 + threat * .01):
+        return None
+    return rng.choice(tuple(ELITE_MODIFIERS))
+
+def elite_modifier(b):
+    for entry in b.log or []:
+        if entry.startswith('!elite:'):
+            key = entry[7:]
+            return key if key in ELITE_MODIFIERS else None
+    return None
+
 def choose_enemy(threat, rng=None):
     rng = rng or random
     # Avoid fighting upper-tier enemies in early zones.
@@ -259,8 +281,9 @@ def give_item(db,pid,key,qty=1):
     else:db.add(ItemStack(player_id=pid,item_key=key,quantity=qty,equipped=False))
 
 def take_item(db,pid,key,qty=1):
-    if qty<=0 or item_count(db,pid,key)<qty:raise ValueError('Недостаточно предметов')
+    if qty<=0:raise ValueError('Недостаточно предметов')
     stack=db.scalar(select(ItemStack).where(ItemStack.player_id==pid,ItemStack.item_key==key,ItemStack.equipped==False).with_for_update())
+    if not stack or stack.quantity<qty:raise ValueError('Недостаточно предметов')
     stack.quantity-=qty
     if stack.quantity==0:db.delete(stack)
 
@@ -292,7 +315,7 @@ def player_view(db,p):
 
 def battle_view(b):
     if not b:return None
-    public_log=[v for v in (b.log or []) if not v.startswith('!ability:')]
+    public_log=[v for v in (b.log or []) if not v.startswith(('!ability:', '!elite:'))]
     used={}
     for v in (b.log or []):
         if v.startswith('!ability:'):
@@ -300,8 +323,11 @@ def battle_view(b):
                 _,key,turn=v.split(':');used[key]=int(turn)
             except (ValueError,TypeError):pass
     key, enemy = enemy_info(b.kind)
+    elite=elite_modifier(b)
     return {'id':b.id,'enemy':b.enemy,'enemy_id':key,'enemy_type':enemy['family'],'trait':enemy['trait'],'skill':enemy['skill'],'tier':enemy['tier'],'lore':enemy['lore'],'hp':b.enemy_hp,'max_hp':b.enemy_max_hp,'turn':b.turn,
-            'log':public_log[-6:],'incoming_special':enemy['trait'] not in ('none','armor') and (b.turn+1)%3==0,
+            'elite':{'key':elite,**ELITE_MODIFIERS[elite]} if elite else None,
+            'log':public_log[-6:],'incoming_special':(enemy['trait'] not in ('none','armor') or elite=='venom') and (b.turn+1)%3==0,
+            'elite_warning':(enemy['skill']+' + ядовитый укус' if enemy['trait'] not in ('none','armor') else 'Ядовитый укус') if elite=='venom' and (b.turn+1)%3==0 else None,
             'tactics':ENEMY_TACTICS[key],'ability_cooldowns':{key:max(0,3-(b.turn-turn)) for key,turn in used.items()}}
 
 def attack_power(db,p):
@@ -314,6 +340,7 @@ def attack_power(db,p):
 
 def combat_round(db,p,b,action,zone='body'):
     if action not in ('attack','medkit','flee','defend','skill'):raise ValueError('Неизвестное действие')
+    elite=elite_modifier(b)
     if action=='flee':
         db.delete(b)
         return {'finished':True,'won':False,'fled':True,'message':'Удалось ускользнуть от заражённого'}
@@ -366,9 +393,10 @@ def combat_round(db,p,b,action,zone='body'):
         if crit:d*=2
         if b.enemy_hp<=b.enemy_max_hp*.35:d=int(d*(1+talent_bonus(p,'execute')))
         enemy_key, enemy = enemy_info(b.kind)
-        if enemy['armor'] and d:
+        plating_amount=min(.55,enemy['armor']+(.22 if elite=='armor' else 0))
+        if plating_amount and d:
             # Headshots exploit gaps in bone plating; legs are easier to reach.
-            plating = enemy['armor'] * (.45 if zone=='head' else .75 if zone=='legs' else 1.0)
+            plating = plating_amount * (.45 if zone=='head' else .75 if zone=='legs' else 1.0)
             d=max(1,round(d*(1-plating)))
         b.enemy_hp=max(0,b.enemy_hp-d)
         if d and talent_bonus(p,'lifesteal'):
@@ -382,6 +410,9 @@ def combat_round(db,p,b,action,zone='body'):
         first_discovery=record_enemy(p,enemy_key,defeated=True)
         xp=int((35+b.enemy_max_hp*.3)*enemy['reward']*random.uniform(.85,1.15))
         caps=int((random.randint(9,32)+b.enemy_damage)*enemy['reward']*(1+talent_bonus(p,'caps')))
+        if elite:
+            xp=round(xp*1.35)
+            caps=round(caps*1.35)
         if first_discovery:
             xp+=25
             caps+=15
@@ -405,13 +436,13 @@ def combat_round(db,p,b,action,zone='body'):
         from gear import roll_drop,gear_view
         rare_drop=None
         threat=LOCATIONS.get(p.location,{}).get('threat',1)
-        if random.random()<min(.20,.055+.023*threat):
+        if random.random()<min(.30,.055+.023*threat+(.10 if elite else 0)):
             try:
-                rare_drop=gear_view(roll_drop(db,p.id,threat))
+                rare_drop=gear_view(roll_drop(db,p.id,threat,minimum='uncommon' if elite else 'common'))
             except ValueError:pass  # A full gear locker must never cancel a won battle.
         progress(db,p.id,'kills')
         db.delete(b)
-        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps-territorial_tax} крышек'+(f' · Налог территории: {territorial_tax}' if territorial_tax else '')+(' · Новый уровень!' if xp_levels else '')+(' · Новый вид в бестиарии: +25 XP, +15 крышек' if first_discovery else '')+(' · Найдена экипировка: '+rare_drop['rarity_name']+' '+rare_drop['name'] if rare_drop else ''),'gear_drop':rare_drop,'loot':loot,'tax':territorial_tax,'new_species':first_discovery}
+        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps-territorial_tax} крышек'+(' · Элитная цель' if elite else '')+(f' · Налог территории: {territorial_tax}' if territorial_tax else '')+(' · Новый уровень!' if xp_levels else '')+(' · Новый вид в бестиарии: +25 XP, +15 крышек' if first_discovery else '')+(' · Найдена экипировка: '+rare_drop['rarity_name']+' '+rare_drop['name'] if rare_drop else ''),'gear_drop':rare_drop,'loot':loot,'tax':territorial_tax,'new_species':first_discovery,'elite':elite}
     enemy_key, enemy = enemy_info(b.kind)
     defense=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key=='vest'))
     from gear import gear_stats
@@ -423,6 +454,7 @@ def combat_round(db,p,b,action,zone='body'):
         raw=max(1,round(raw*{'frenzy':1.45,'acid':1.28,'smash':1.60,'howl':1.20,'ambush':1.36}[enemy['trait']]))
         # Defending in the telegraphed turn halves the special's raw damage.
         if action=='defend':raw=max(1,raw//2)
+    if elite=='frenzy':raw=max(1,round(raw*1.18))
     evade_chance=min(.7,talent_bonus(p,'dodge')+extra_dodge)
     evaded=random.random()<evade_chance
     received=0 if evaded else max(1,round(raw*(1-min(.70,talent_bonus(p,'mitigation')+talent_bonus(p,'armor')))))
@@ -431,12 +463,24 @@ def combat_round(db,p,b,action,zone='body'):
     if special and not evaded and action!='defend' and enemy['trait'] in ('acid','howl'):
         drained=min(p.stamina,6 if enemy['trait']=='acid' else 4)
         p.stamina-=drained
+    base_drained=drained
+    poison=0
+    if special and elite=='venom' and not evaded and action!='defend':
+        poison=min(p.stamina,8)
+        p.stamina-=poison
     b.turn+=1
     if special and enemy['trait'] not in ('none','armor'):
         msg+=' · '+enemy['skill']+'!'
         if action=='defend':msg+=' · Успешный блок'
-        if drained:msg+=f' · −{drained} энергии'
-    b.log=[*(b.log or [])[-20:],msg,('↝ Уклонение! Урон не получен' if evaded else f'{b.enemy} наносит {received} урона')]
+        if base_drained:msg+=f' · −{base_drained} энергии'
+    if special and elite=='venom':
+        msg+=' · Ядовитый укус'+(' отражён' if action=='defend' or evaded else f': −{poison} энергии')
+    if elite=='regen' and b.enemy_hp>0:
+        healed=min(b.enemy_max_hp-b.enemy_hp,max(1,round(b.enemy_max_hp*.06)))
+        b.enemy_hp+=healed
+        if healed:msg+=f' · Регенерация: +{healed} HP'
+    history=[entry for entry in (b.log or []) if not entry.startswith('!elite:')]
+    b.log=([f'!elite:{elite}'] if elite else [])+history[-18:]+[msg,('↝ Уклонение! Урон не получен' if evaded else f'{b.enemy} наносит {received} урона')]
     if p.hp==0:
         p.hp=max(1,max_hp(p)//2)
         loss=min(p.caps,int(p.caps*.2))
@@ -456,6 +500,7 @@ def spawn_battle(db,p):
     spend_stamina(p,2)
     threat=LOCATIONS[p.location]['threat']
     key=choose_enemy(threat)
+    elite=choose_elite_modifier(threat)
     enemy=ENEMIES[key]
     hp=max(15,int((30+threat*18+random.randint(0,20))*enemy['hp']))
     damage=max(2,int((3+threat*3)*enemy['damage']))
@@ -463,7 +508,11 @@ def spawn_battle(db,p):
     if active_event(db,p.location,'horde'):
         hp=max(1,round(hp*1.25))
         damage=max(2,round(damage*1.15))
-    b=Battle(player_id=p.id,kind='zombie:'+key,enemy=enemy['name'],enemy_hp=hp,enemy_max_hp=hp,enemy_damage=damage,log=['Вдалеке слышен хрип...'])
+    if elite:
+        hp=max(1,round(hp*1.35))
+        damage=max(2,round(damage*1.12))
+    log=([f'!elite:{elite}'] if elite else [])+['Вдалеке слышен хрип...']
+    b=Battle(player_id=p.id,kind='zombie:'+key,enemy=('Элитный ' if elite else '')+enemy['name'],enemy_hp=hp,enemy_max_hp=hp,enemy_damage=damage,log=log)
     db.add(b);db.flush()
     record_enemy(p,key)
     return battle_view(b)

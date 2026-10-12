@@ -135,7 +135,7 @@ from encounters import start as start_encounter, EncounterState
 encounter_id=9927000201
 with SessionLocal.begin() as db:
     hero=db.scalar(select(Player).where(Player.id==encounter_id).with_for_update())
-    hero.location='forest'
+    hero.location='city'
     hero.stamina=250
     encounter=start_encounter(db,hero,key='checkpoint',roll=0)
     assert encounter.key=='checkpoint' and encounter.roll==0

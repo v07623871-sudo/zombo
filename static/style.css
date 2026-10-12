@@ -165,6 +165,7 @@
 @media(prefers-reduced-motion:reduce){.mob-tap .mob-portrait{transition:none}.mob-tap.hit-confirmed .mob-portrait,.tap-damage{animation:none}}
 .mob-combat h2{font-size:26px;margin:0}.mob-description{font-size:10px;color:#bac2ba;margin:5px auto;line-height:1.5;max-width:300px}
 .mob-combat-trait{font-size:9px;color:#dfc08d;letter-spacing:.4px;text-transform:uppercase;font-weight:800;margin:9px 0 2px}
+.elite-banner{display:grid;gap:4px;margin:9px auto 5px;padding:8px 10px;max-width:320px;border:1px solid #9e734d;background:#33271f;border-radius:7px;text-align:left}.elite-banner strong{font:700 11px Oswald,Arial,sans-serif;letter-spacing:.7px;color:#f2c58f}.elite-banner span{font-size:10px;color:#e1d8c6;line-height:1.4}.elite-banner small{font-size:9px;color:#bda482}
 .battle-hp{max-width:260px;margin:2px auto 4px}.fight-actions-panel{padding:12px 13px}.fight-actions-panel .section-label{margin:13px 0 8px}.fight-actions-panel .actions{margin-top:8px}
 /* The map and clan roster share visual rhythm on very narrow Telegram WebView windows. */
 .war-banner{padding:13px;margin-bottom:10px}.war-banner h2{font-size:24px;margin:6px 0 9px}.war-schedule{gap:5px;margin:8px 0}.war-schedule span{padding:8px 3px;font-size:9px}.war-schedule b{font-size:9px}.war-banner .smallnote{padding:3px 0;margin:2px 0}
@@ -292,3 +293,4 @@
 .mission-rank small{font-size:10px;color:#a0aeb1}
 .mission-rank>b{font-size:12px;white-space:nowrap;color:#efc57f}
 @media(max-width:390px){.mission-footer{align-items:stretch;flex-direction:column}.mission-footer .btn{width:100%}.mission-head .flex-between{flex-wrap:wrap}}
+.row-main p{overflow-wrap:anywhere}

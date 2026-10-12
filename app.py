@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.orm import Session
-from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, Clan, Territory,
+from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, Clan, Territory, tag_resource_operation,
                     MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, StarInvoice, PaymentReview, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
 from game import (ENEMIES, CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
                   aware, max_hp, gain_xp, give_item, take_item, item_count, tick, spend_stamina,
@@ -51,7 +51,15 @@ async def telegram_api(method, payload):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    if engine.dialect.name == 'postgresql' and not DEMO:
+        # Never recreate a missing live table on startup and hide lost data.
+        from scripts.migrate import status as migration_status
+        with engine.connect() as connection:
+            plan = migration_status(connection)
+        if plan['pending_tables'] or plan['pending_versions']:
+            raise RuntimeError('Database schema is not migrated; run python scripts/migrate.py before starting ZOMBO')
+    else:
+        Base.metadata.create_all(bind=engine)
     with SessionLocal.begin() as db:
         for key in TERRITORIES:
             if not db.get(Territory,key): db.add(Territory(id=key))
@@ -114,16 +122,18 @@ async def _deliver_notifications():
 
 def _war_clock_tick():
     with SessionLocal.begin() as session:
+        from clan_missions import settle_seasons
+        settle_seasons(session)
         refresh_world(session)
         expire_sales(session)
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.16.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.21.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.16.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.21.0'}
 
 @app.get('/ready')
 def readiness():
@@ -213,6 +223,7 @@ def get_player(authorization: str=Header(default=''),db:Session=Depends(db_sessi
     return p
 
 def with_player(request:Request, db: Session):
+    tag_resource_operation(db, f'{request.method}:{request.url.path}')
     user=identify(request.headers.get('authorization',''))
     p=db.scalar(select(Player).where(Player.id==int(user['id'])).with_for_update())
     if not p:
@@ -682,6 +693,13 @@ def market_create(body:LotRequest,request:Request,db:Session=Depends(db_session)
 @app.post('/api/market/buy')
 def market_buy(body:IdBody,request:Request,db:Session=Depends(db_session)):
     with db.begin():
+        buyer_id=int(identify(request.headers.get('authorization',''))['id'])
+        seller_id=db.scalar(select(MarketLot.seller_id).where(MarketLot.id==body.id))
+        if seller_id is not None:
+            # Both inventories may change. Lock accounts in the same order for
+            # reciprocal trades, before locking either lot or item stack.
+            list(db.scalars(select(Player).where(Player.id.in_([buyer_id,seller_id]))
+                            .order_by(Player.id).with_for_update()))
         p=with_player(request,db);ready(p)
         lot=db.scalar(select(MarketLot).where(MarketLot.id==body.id).with_for_update())
         if not lot or not lot.active:raise ValueError('Лот недоступен')
@@ -993,6 +1011,7 @@ async def _dispatch_update(data):
                     p=db.scalar(select(Player).where(Player.id==pid).with_for_update())
                     if not p:raise ValueError('Payment recipient missing')
                     if not db.get(Payment,charge_id):
+                        tag_resource_operation(db, f'stars:{charge_id}', stable=True)
                         p.zombo+=zombo
                         db.add(Payment(id=charge_id,player_id=p.id,stars=stars,zombo=zombo))
                         credited=True
@@ -1026,6 +1045,8 @@ async def _dispatch_update(data):
                 reply = f'🔒 Твой Telegram ID: {int(user["id"])}.\nДобавь этот номер в ADMIN_IDS на Railway.'
         elif text=='/daily':
             with SessionLocal.begin() as db:
+                if data.get('update_id') is not None:
+                    tag_resource_operation(db, f'telegram-daily:{data["update_id"]}', stable=True)
                 p=db.scalar(select(Player).where(Player.id==int(user['id'])).with_for_update())
                 if not p or not p.hero_class:reply='Сначала создай персонажа в игре.'
                 elif p.banned or p.frozen:reply='Персонаж заблокирован.'
