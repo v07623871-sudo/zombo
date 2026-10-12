@@ -69,6 +69,7 @@ def queue_notification(db: Session, player_id: int, event_key: str, category: st
     db.add(NotificationOutbox(
         player_id=player_id, event_key=event_key, category=category, kind=kind,
         message=message[:700], scheduled_at=scheduled_at or now()))
+    db.flush()  # See already queued events inside this transaction as well.
     return True
 
 
