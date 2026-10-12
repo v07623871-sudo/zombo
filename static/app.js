@@ -12,6 +12,7 @@ let navTrail=[],navigationBusy=false,leaderboardSort='level';
 let gearMarket=null,gearMarketTab='browse',gearMarketPage=1;
 let story=null;
 let notificationData=null;
+let worldEvents=null,adminWorldEvents=null;
 let adminSummary=null,adminPlayers=null,adminDetail=null,adminAudit=null,adminTransactions=null,adminRisk=null,adminTab='players',adminQuery='',adminClass='',adminMinLevel=1,adminPage=1,adminAuditPage=1;
 let cfg=null,me=null,screen='home',activePath=0,sub='inventory',loading=false,modal=null,zone='body',pvp=null,clans=null,quests=null,boss=null,lots=null,territories=null,leaderboard=null,shop=null,stars=null,premium=null,choice=null;
 let auth=tg?.initData?'tma '+tg.initData:(location.search.includes('demo=1')?'demo:1001':'');
@@ -26,9 +27,9 @@ function notice(msg,error=false){const el=document.getElementById('toast');el.in
 async function api(url,method='GET',payload){const response=await fetch('/api/'+url,{method,headers:{'Content-Type':'application/json','Authorization':auth},body:payload?JSON.stringify(payload):undefined});let j;try{j=await response.json()}catch(e){throw new Error('Сервер недоступен, попробуй позже')};if(!response.ok)throw new Error(typeof j.detail==='string'?j.detail:'Ошибка запроса');return j}
 async function act(url,body,refresh=true){if(loading)return;loading=true;try{const res=await api(url,'POST',body);if(res.message)notice(res.message);if(refresh)await sync();return res}catch(e){notice(e.message,true)}finally{loading=false}}
 async function sync(){me=await api('me');await fetchScreen();render()}
-async function fetchScreen(){if(screen==='notifications')notificationData=await api('notifications');if(screen==='gear-market')gearMarket=await api('gear-market?page='+gearMarketPage);if(screen==='story')story=await api('story');if(screen==='raids')raids=await api('raids');if(screen==='expeditions')expeditions=await api('expeditions');if(screen==='quests')quests=await api('quests');if(screen==='boss')boss=await api('boss');if(screen==='map')territories=await api('territories');if(screen==='clan'){[clans,territories,warsData,clanMissions]=await Promise.all([api('clans'),api('territories'),api('territories/wars'),api('clan-missions')])};if(screen==='market')lots=await api('market');if(screen==='pvp')pvp=await api('pvp');if(screen==='leaders')leaderboard=await api('leaderboard?sort='+leaderboardSort);if(screen==='shop')shop=await api('shop');if(screen==='stars'){stars=await api('stars');premium=await api('premium')}if(screen==='admin')await fetchAdmin()}
-async function fetchAdmin(){adminSummary=await api('admin/summary');if(adminTab==='players'){adminPlayers=await api('admin/players?q='+encodeURIComponent(adminQuery)+'&hero_class='+encodeURIComponent(adminClass)+'&min_level='+adminMinLevel+'&page='+adminPage);if(adminDetail)adminDetail=await api('admin/players/'+adminDetail.id)}if(adminTab==='audit')adminAudit=await api('admin/audit?page='+adminAuditPage);if(adminTab==='transactions')adminTransactions=await api('admin/transactions');if(adminTab==='risk')adminRisk=await api('admin/risk')}
-const screenNames={home:'База',map:'Карта',profile:'Герой',clan:'Клан',more:'Меню',fight:'Бой',talents:'Таланты',inventory:'Инвентарь',craft:'Мастерская',quests:'Задания',boss:'Мировой босс',market:'Биржа',pvp:'Арена',raids:'Рейды',expeditions:'Экспедиции',shop:'Торговец',gear:'Арсенал',story:'Сюжет',stars:'Zombo Stars',leaders:'Лидеры',bestiary:'Бестиарий','gear-market':'Рынок снаряжения',notifications:'Уведомления',admin:'Админка'};
+async function fetchScreen(){if(screen==='world-events')worldEvents=await api('world-events');if(screen==='notifications')notificationData=await api('notifications');if(screen==='gear-market')gearMarket=await api('gear-market?page='+gearMarketPage);if(screen==='story')story=await api('story');if(screen==='raids')raids=await api('raids');if(screen==='expeditions')expeditions=await api('expeditions');if(screen==='quests')quests=await api('quests');if(screen==='boss')boss=await api('boss');if(screen==='map')territories=await api('territories');if(screen==='clan'){[clans,territories,warsData,clanMissions]=await Promise.all([api('clans'),api('territories'),api('territories/wars'),api('clan-missions')])};if(screen==='market')lots=await api('market');if(screen==='pvp')pvp=await api('pvp');if(screen==='leaders')leaderboard=await api('leaderboard?sort='+leaderboardSort);if(screen==='shop')shop=await api('shop');if(screen==='stars'){stars=await api('stars');premium=await api('premium')}if(screen==='admin')await fetchAdmin()}
+async function fetchAdmin(){adminSummary=await api('admin/summary');if(adminTab==='players'){adminPlayers=await api('admin/players?q='+encodeURIComponent(adminQuery)+'&hero_class='+encodeURIComponent(adminClass)+'&min_level='+adminMinLevel+'&page='+adminPage);if(adminDetail)adminDetail=await api('admin/players/'+adminDetail.id)}if(adminTab==='audit')adminAudit=await api('admin/audit?page='+adminAuditPage);if(adminTab==='transactions')adminTransactions=await api('admin/transactions');if(adminTab==='risk')adminRisk=await api('admin/risk');if(adminTab==='events')adminWorldEvents=await api('admin/world-events')}
+const screenNames={home:'База',map:'Карта',profile:'Герой',clan:'Клан',more:'Меню',fight:'Бой',talents:'Таланты',inventory:'Инвентарь',craft:'Мастерская',quests:'Задания',boss:'Мировой босс',market:'Биржа',pvp:'Арена',raids:'Рейды',expeditions:'Экспедиции',shop:'Торговец',gear:'Арсенал',story:'Сюжет',stars:'Zombo Stars',leaders:'Лидеры',bestiary:'Бестиарий','gear-market':'Рынок снаряжения',notifications:'Уведомления','world-events':'События',admin:'Админка'};
 function fallbackScreen(){return screen==='fight'?'map':screen==='talents'?'profile':['home','map','profile','clan','more'].includes(screen)?'home':'more'}
 function syncTelegramBack(){try{if(me?.class&&(modal||screen!=='home'||navTrail.length))tg?.BackButton?.show();else tg?.BackButton?.hide()}catch(e){}}
 function screenPath(){if(!me?.class||(screen==='home'&&!navTrail.length))return '';const previous=navTrail.at(-1)||fallbackScreen();return `<div class="screen-path"><button type="button" data-action="back" aria-label="Назад к ${esc(screenNames[previous]||'предыдущему экрану')}">← НАЗАД</button><span>${esc(screenNames[screen]||'Терминал')}</span>${screen!=='more'?'<button type="button" data-action="nav" data-value="more">МЕНЮ</button>':''}</div>`}
@@ -175,6 +176,7 @@ function more(){
    ['story','book','Сюжетная кампания','10 глав · решения и последствия'],
    ['raids','skull','Групповые рейды','3–10 игроков · три этапа'],
    ['expeditions','clock','Дальние экспедиции','3–10 игроков · роли · 12 часов'],
+   ['world-events','skull','Глобальные события','Орда заражённых и военные грузы'],
    ['boss','skull','Мировой босс','Общая битва каждые три дня'],
    ['quests','check','Задания','Выполняй поручения и получай опыт'],
    ['bestiary','book','Бестиарий','10 видов заражённых и их приёмы']]],
@@ -195,6 +197,22 @@ function more(){
  ];
  if(me.admin)groups.push(['УПРАВЛЕНИЕ','ТОЛЬКО АДМИНИСТРАТОР',[['admin','shield','Админский терминал','Игроки, модерация, экономика и журнал']]]);
  return `${section('ТЕРМИНАЛ УБЕЖИЩА','МЕНЮ')}${groups.map(([title,meta,options])=>`<div class="menu-group">${section(title,meta)}<div class="list">${options.map(([id,ico,name,desc])=>`<div class="row" data-action="nav" data-value="${id}" style="cursor:pointer"><div class="symbol">${uiIcon(ico)}</div><div class="row-main"><h3>${name}</h3><p>${desc}</p></div><span style="color:var(--gold)">↗</span></div>`).join('')}</div></div>`).join('')}`;
+}
+function worldEventsScreen(){
+ const data=worldEvents||{},events=data.events||[];
+ const labels={scheduled:'СКОРО',active:'ИДЁТ',finished:'ЗАВЕРШЕНО',stopped:'ОСТАНОВЛЕНО'};
+ const active=events.filter(e=>e.status==='active'||e.status==='scheduled');
+ const closed=events.filter(e=>e.status==='finished'||e.status==='stopped');
+ function card(e){
+  const zone=cfg.locations[e.location]?.name||e.location;
+  const interval=new Date(e.starts_at).toLocaleString('ru-RU')+' → '+new Date(e.ends_at).toLocaleString('ru-RU');
+  return `<div class="panel"><div class="flex-between"><h3>${esc(e.name)}</h3><span class="tag">${labels[e.status]}</span></div><p>${esc(e.description)}</p><p class="smallnote">☣ ${esc(zone)} · ${esc(interval)}</p><p>Общий прогресс: <strong>${money(e.progress)} / ${money(e.goal)}</strong> · твой вклад: ${money(e.my_actions)}</p>${bar(e.progress,e.goal)}<div class="flex-between mt"><span class="smallnote">Награда за участие при достижении общей цели: +${money(e.reward.caps)} крышек · +${money(e.reward.xp)} XP</span>${e.claimed?'<span class="tag">ПОЛУЧЕНО</span>':e.can_claim?btn('ЗАБРАТЬ','world-event-claim','small gold',e.id):''}</div></div>`;
+ }
+ return `${section('ЭФИР ПУСТОШИ','ГЛОБАЛЬНЫЕ СОБЫТИЯ')}<div class="notice">Бонусы работают только во время события и только в указанной локации. Награда за общий результат доступна после завершения события участникам, внёсшим вклад. Если общая цель не достигнута, итоговой награды нет.</div>
+ ${section('АКТИВНЫЕ И ЗАПЛАНИРОВАННЫЕ',String(active.length))}
+ <div class="list">${active.map(card).join('')||'<div class="empty">Сейчас эфир спокоен. Новые события создают администраторы.</div>'}</div>
+ ${section('ПОСЛЕДНИЕ СОБЫТИЯ',String(closed.length))}
+ <div class="list">${closed.map(card).join('')||'<div class="empty">Завершённых событий пока нет.</div>'}</div>`;
 }
 function notificationsScreen(){
  const n=notificationData||{},prefs=n.settings||{},history=n.history||[];
@@ -318,8 +336,12 @@ if(adminTab==='audit')content=`<div class="panel"><p class="smallnote">Эксп�
 if(adminTab==='transactions'){const t=adminTransactions||{};content=`${section('ПРОДАЖИ ЭКИПИРОВКИ')}<div class="list">${(t.sales||[]).map(x=>`<div class="row"><div class="row-main"><h3>Лот #${x.id} · ${esc(x.status)}</h3><p>${x.seller_id} → ${x.buyer_id||'—'} · ${money(x.price)} крышек · комиссия ${x.fee}</p></div></div>`).join('')||'<div class="empty">Нет сделок</div>'}</div>${section('ПЛАТЕЖИ TELEGRAM')}<div class="list">${(t.payments||[]).map(x=>`<div class="row"><div class="row-main"><h3>Игрок #${x.player_id}</h3><p>${x.stars} Stars → ${x.zombo} Zombo · ${esc(x.created_at)}</p></div></div>`).join('')||'<div class="empty">Нет платежей</div>'}</div>${section('РЕЙДОВЫЕ НАГРАДЫ')}<div class="list">${(t.raid_rewards||[]).map(x=>`<div class="row"><div class="row-main"><h3>Рейд #${x.run_id} · игрок #${x.player_id}</h3><p>Вклад: ${x.contribution}</p></div></div>`).join('')||'<div class="empty">Нет выдач</div>'}</div>`}
 if(adminTab==='transactions')content=`${section('ПЛАТЕЖИ НА ПРОВЕРКУ',String(adminSummary?.payments_for_review||0))}<div class="list">${(adminTransactions?.payment_reviews||[]).map(x=>`<div class="row"><div class="row-main"><h3>Игрок #${x.player_id} · ${x.amount} ${esc(x.currency)}</h3><p>${esc(x.reason)} · ${esc(x.created_at)}<br>Telegram charge: ${esc(x.charge_id)}</p></div></div>`).join('')||'<div class="empty">Нет платежей, требующих проверки</div>'}</div>`+content;
 if(adminTab==='risk'){const r=adminRisk||{};content=`<div class="panel"><h3>КОНТРОЛЬ ЭКОНОМИКИ</h3><p class="smallnote">${esc(r.disclaimer||'Требуется проверка человеком.')} За 7 дней просмотрено ${money(r.transactions_examined)} сделок из 500 последних. Автоматических блокировок нет.</p><p><strong>Сигналов: ${money(r.total_findings)}</strong></p></div><div class="list">${(r.findings||[]).map(f=>`<div class="row"><div class="symbol">${f.severity==='high'?'⚠':'⌕'}</div><div class="row-main"><h3>${esc(f.title)}</h3><p>${esc(f.description)}<br>${esc(f.created_at)} · игрок #${f.player_id}${f.related_player_id?' ↔ #'+f.related_player_id:''}</p></div>${f.player_id?btn('ИГРОК','admin-risk-player','small ghost',f.player_id):''}</div>`).join('')||'<div class="empty">Подозрительных операций по заданным правилам не найдено.</div>'}</div>`}
-return `${section('АДМИНСКИЙ ТЕРМИНАЛ','ДОСТУП ПО TELEGRAM ID')}<div class="notice">Операции видны в журнале. Zombo через админку не зачисляется.</div><div class="admin-stats">${stats.map(([label,value])=>`<div class="stat-chip"><small>${esc(label)}</small><strong>${money(value)}</strong></div>`).join('')}</div><div class="actions">${[['players','ИГРОКИ'],['audit','ЖУРНАЛ'],['transactions','ОПЕРАЦИИ'],['risk','РИСКИ']].map(([key,label])=>btn(label,'admin-tab',adminTab===key?'gold':'soft',key)).join('')}</div><div class="mt">${content}</div>`}
-function render(){document.title='ZOMBO · AFTER THE FALL';if(!me||!cfg)return;const page=!me.class?classes():({home,map,profile,talents:talentsScreen,more,fight,inventory:inventoryScreen,craft:craftScreen,quests:questsScreen,boss:bossScreen,clan:clanScreen,market:marketScreen,'gear-market':gearMarketScreen,pvp:pvpScreen,raids:raidScreen,expeditions:expeditionScreen,shop:shopScreen,gear:gearScreen,story:storyScreen,stars:starsScreen,leaders:leadersScreen,bestiary:bestiaryScreen,notifications:notificationsScreen,admin:adminScreen}[screen]||home)();app.innerHTML=`<div class="app-shell">${header()}${screenPath()}<main>${page}</main>${me.class?navBar():''}</div>${modalView()}`;syncTelegramBack()}
+if(adminTab==='events'){
+ const data=adminWorldEvents?.events||[],labels={scheduled:'ЗАПЛАНИРОВАНО',active:'ИДЁТ',finished:'ЗАВЕРШЕНО',stopped:'ОСТАНОВЛЕНО'};
+ content=`<div class="panel"><h3>МИРОВЫЕ СОБЫТИЯ</h3><p class="smallnote">Запланируй орду заражённых или военный груз. Эффект применяется к реальным действиям игроков только в выбранной локации. Изменения записываются в административный журнал.</p>${btn('＋ СОЗДАТЬ СОБЫТИЕ','admin-event-create','gold')}</div><div class="list">${data.map(e=>`<div class="row"><div class="row-main"><h3>#${e.id} · ${esc(e.name)} <span class="tag">${esc(labels[e.status]||e.status)}</span></h3><p>${esc(cfg.locations[e.location]?.name||e.location)} · ${esc(new Date(e.starts_at).toLocaleString('ru-RU'))} → ${esc(new Date(e.ends_at).toLocaleString('ru-RU'))}<br>Прогресс: ${money(e.progress)} / ${money(e.goal)}</p></div>${['active','scheduled'].includes(e.status)?btn('СТОП','admin-event-stop','small red',e.id):''}</div>`).join('')||'<div class="empty">События ещё не создавались.</div>'}</div>`;
+}
+return `${section('АДМИНСКИЙ ТЕРМИНАЛ','ДОСТУП ПО TELEGRAM ID')}<div class="notice">Операции видны в журнале. Zombo через админку не зачисляется.</div><div class="admin-stats">${stats.map(([label,value])=>`<div class="stat-chip"><small>${esc(label)}</small><strong>${money(value)}</strong></div>`).join('')}</div><div class="actions">${[['players','ИГРОКИ'],['audit','ЖУРНАЛ'],['transactions','ОПЕРАЦИИ'],['risk','РИСКИ'],['events','СОБЫТИЯ']].map(([key,label])=>btn(label,'admin-tab',adminTab===key?'gold':'soft',key)).join('')}</div><div class="mt">${content}</div>`}
+function render(){document.title='ZOMBO · AFTER THE FALL';if(!me||!cfg)return;const page=!me.class?classes():({home,map,profile,talents:talentsScreen,more,fight,inventory:inventoryScreen,craft:craftScreen,quests:questsScreen,boss:bossScreen,clan:clanScreen,market:marketScreen,'gear-market':gearMarketScreen,pvp:pvpScreen,raids:raidScreen,expeditions:expeditionScreen,shop:shopScreen,gear:gearScreen,story:storyScreen,stars:starsScreen,leaders:leadersScreen,bestiary:bestiaryScreen,notifications:notificationsScreen,'world-events':worldEventsScreen,admin:adminScreen}[screen]||home)();app.innerHTML=`<div class="app-shell">${header()}${screenPath()}<main>${page}</main>${me.class?navBar():''}</div>${modalView()}`;syncTelegramBack()}
 const forms={
  'clan-create':['ОСНОВАТЬ КЛАН','<label>Название (3–30 символов)</label><input id="input-name" maxlength="30" placeholder="Стальные волки" autocomplete="off"><p>Стоимость: 250 крышек</p>','submit-clan','Создать клан'],
  'clan-donate':['КАЗНА КЛАНА','<label>Количество крышек</label><input id="input-qty" type="number" min="1" value="50">','submit-donate','Внести'],
@@ -363,6 +385,38 @@ async function handle(action,value){
     const result=await act('notifications/settings',{category:value,enabled},false);
     if(result){notificationData=await api('notifications');render()}
     return;
+  }
+  if(action==='world-event-claim'){
+    const result=await act('world-events/claim',{id:Number(value)},false);
+    if(result){worldEvents=await api('world-events');me=await api('me');render()}
+    return;
+  }
+  if(action==='admin-event-create'){
+    const types=[['horde','Орда заражённых'],['supplies','Военный груз']];
+    const zones=Object.entries(cfg.locations).filter(([id])=>id!=='base');
+    showModal('ЗАПЛАНИРОВАТЬ СОБЫТИЕ',`<label>Тип события</label><select id="event-type">${types.map(([key,name])=>`<option value="${key}">${esc(name)}</option>`).join('')}</select><label>Локация</label><select id="event-zone">${zones.map(([key,z])=>`<option value="${key}">${esc(z.name)}</option>`).join('')}</select><label>Запуск через (минут, 0 = сейчас)</label><input id="event-delay" type="number" min="0" max="10080" value="0"><label>Продолжительность (минут, 30–1440)</label><input id="event-duration" type="number" min="30" max="1440" value="120"><label>Причина</label><textarea id="event-reason" rows="2" maxlength="300" placeholder="Игровое событие для всех выживших"></textarea>`,'admin-event-create-confirm','ЗАПЛАНИРОВАТЬ');
+    modal.requestId=crypto.randomUUID();return;
+  }
+  if(action==='admin-event-create-confirm'){
+    const reason=document.getElementById('event-reason')?.value.trim()||'';
+    const delay=Number(document.getElementById('event-delay')?.value);
+    const duration=Number(document.getElementById('event-duration')?.value);
+    if(reason.length<5||!Number.isInteger(delay)||delay<0||delay>10080||!Number.isInteger(duration)||duration<30||duration>1440){notice('Проверь причину, время и длительность',true);return}
+    const body={type:document.getElementById('event-type').value,location:document.getElementById('event-zone').value,starts_in_minutes:delay,duration_minutes:duration,reason,request_id:modal.requestId};
+    const result=await act('admin/world-events/create',body,false);
+    if(result){modal=null;await fetchAdmin();render()}return;
+  }
+  if(action==='admin-event-stop'){
+    const event=(adminWorldEvents?.events||[]).find(e=>String(e.id)===value);
+    if(!event){notice('Событие не найдено',true);return}
+    showModal('ОСТАНОВИТЬ СОБЫТИЕ?',`<p>${esc(event.name)} · #${event.id}</p><label>Причина остановки</label><textarea id="event-reason" rows="2" maxlength="300"></textarea>`,'admin-event-stop-confirm','ОСТАНОВИТЬ');
+    modal.eventId=event.id;modal.requestId=crypto.randomUUID();return;
+  }
+  if(action==='admin-event-stop-confirm'){
+    const reason=document.getElementById('event-reason')?.value.trim()||'';
+    if(reason.length<5){notice('Укажи причину (минимум 5 символов)',true);return}
+    const result=await act('admin/world-events/'+modal.eventId+'/stop',{reason,request_id:modal.requestId},false);
+    if(result){modal=null;await fetchAdmin();render()}return;
   }
   if(action==='admin-tab'){adminTab=value;adminDetail=null;await fetchAdmin();render();return}
   if(action==='admin-search'){adminQuery=document.getElementById('admin-q')?.value?.trim()||'';adminClass=document.getElementById('admin-class')?.value||'';adminMinLevel=Math.max(1,Math.min(1000,Number(document.getElementById('admin-level')?.value)||1));adminPage=1;adminDetail=null;await fetchAdmin();render();return}
