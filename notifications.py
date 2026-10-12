@@ -213,6 +213,7 @@ def install_notifications(app, with_player):
                 entry = NotificationPreference(player_id=player.id)
                 db.add(entry)
             setattr(entry, body.category, body.enabled)
+            db.flush()
             return {'message': 'Уведомления включены' if body.enabled else 'Уведомления отключены',
                     'settings': settings(db, player.id)}
 
