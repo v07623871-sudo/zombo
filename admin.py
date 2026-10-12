@@ -391,7 +391,7 @@ def install_admin(app, identify, admin_ids):
 
     @router.get('/ledger')
     def resource_ledger(request: Request, player_id: int | None = Query(default=None, ge=1, le=9223372036854775807),
-                        kind: str | None = Query(default=None, pattern=r'^(currency|item|gear|xp)
+                        kind: str | None = Query(default=None, pattern=r'^(currency|item|gear|xp)$'),
                         page: int = Query(default=1, ge=1, le=1000),
                         db: Session = Depends(session)):
         actor(request, db)
