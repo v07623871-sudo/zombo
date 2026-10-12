@@ -129,3 +129,25 @@ with TestClient(app) as api:
         assert part.claimed is True
     print('PostgreSQL global event scheduling and one-time claim: PASS')
 ADMIN_IDS.discard(admin_id)
+
+# Real PostgreSQL encounter smoke: one immutable roll, an expensive option and replay rejection.
+from encounters import start as start_encounter, EncounterState
+encounter_id=9927000201
+with SessionLocal.begin() as db:
+    hero=db.scalar(select(Player).where(Player.id==encounter_id).with_for_update())
+    hero.location='forest'
+    hero.stamina=250
+    encounter=start_encounter(db,hero,key='checkpoint',roll=0)
+    assert encounter.key=='checkpoint' and encounter.roll==0
+with TestClient(app) as api:
+    h={'Authorization':f'demo:{encounter_id}'}
+    state=api.get('/api/encounters',headers=h)
+    assert state.status_code==200 and state.json()['pending']
+    result=api.post('/api/encounters/resolve',headers=h,json={'action':'loot'})
+    assert result.status_code==200,('encounter reward',result.text)
+    again=api.post('/api/encounters/resolve',headers=h,json={'action':'loot'})
+    assert again.status_code==400,('encounter replay',again.text)
+    with SessionLocal.begin() as db:
+        record=db.get(EncounterState,encounter_id)
+        assert record.status=='resolved' and record.roll==0
+    print('PostgreSQL persistent encounters and replay protection: PASS')

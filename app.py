@@ -2,6 +2,7 @@ import os, hmac, hashlib, json, random, re, secrets, logging, asyncio
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from security import ApiQuota, TelegramReceipt, TooManyActions, enforce_quota, claim_update, finish_update, prune_update_receipts
+from encounters import install_encounters, pending_encounter
 from world_events import install_world_events, record_action as record_world_action
 from notifications import (install_notifications, claim_batch, complete_delivery,
                            cleanup as cleanup_notifications)
@@ -118,11 +119,11 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.15.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.16.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.15.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.16.0'}
 
 @app.get('/ready')
 def readiness():
@@ -231,7 +232,8 @@ def config():return {'enemies':ENEMIES,'classes':CLASSES,'skills':SKILLS,'skill_
 def me(request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db)
-        return {**player_view(db,p), 'admin': p.id in ADMIN_IDS}
+        return {**player_view(db,p), 'admin': p.id in ADMIN_IDS,
+                'encounter_pending': pending_encounter(db,p.id)}
 
 class Choice(BaseModel):
     key: str = Field(min_length=1,max_length=55)
@@ -265,6 +267,7 @@ install_clan_missions(app, with_player, ready)
 install_admin(app, identify, ADMIN_IDS)
 install_notifications(app, with_player)
 install_world_events(app, with_player, identify, ADMIN_IDS)
+install_encounters(app, with_player, ready)
 
 @app.post('/api/stat')
 def upgrade_stat(body:Choice,request:Request,db:Session=Depends(db_session)):
@@ -316,6 +319,7 @@ def travel(body:Choice,request:Request,db:Session=Depends(db_session)):
         loc=LOCATIONS.get(body.key)
         if not loc:raise ValueError('Нет такой локации')
         if db.scalar(select(Battle).where(Battle.player_id==p.id)):raise ValueError('Нельзя уходить во время боя')
+        if pending_encounter(db,p.id):raise ValueError('Сначала заверши случайную встречу в меню')
         if p.level<loc['min_level']:raise ValueError(f'Доступ с {loc["min_level"]} уровня')
         if p.location!=body.key:
             if body.key!='base':spend_stamina(p,3)
@@ -327,6 +331,7 @@ def scavenge(request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db);ready(p)
         if p.location=='base':raise ValueError('На базе нет ресурсов для поиска')
+        if pending_encounter(db,p.id):raise ValueError('Сначала заверши случайную встречу в меню')
         if db.scalar(select(Battle).where(Battle.player_id==p.id)):raise ValueError('В бою нельзя искать припасы')
         spend_stamina(p,5)
         loc=LOCATIONS[p.location]
@@ -353,6 +358,7 @@ def scavenge(request:Request,db:Session=Depends(db_session)):
 def fight_start(request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db);ready(p)
+        if pending_encounter(db,p.id):raise ValueError('Сначала заверши случайную встречу в меню')
         b=spawn_battle(db,p)
         return {'message':'Заражённый приближается!','battle':b}
 
