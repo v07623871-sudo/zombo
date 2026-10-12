@@ -87,7 +87,8 @@ def record_action(db: Session, player: Player, type: str):
         WorldEventParticipation.event_id == event.id,
         WorldEventParticipation.player_id == player.id).with_for_update())
     if not participation:
-        participation = WorldEventParticipation(event_id=event.id, player_id=player.id)
+        participation = WorldEventParticipation(event_id=event.id, player_id=player.id,
+                                                   actions=0, claimed=False)
         db.add(participation)
     participation.actions += 1
     event.total_progress += 1
