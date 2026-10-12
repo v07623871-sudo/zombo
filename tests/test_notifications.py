@@ -160,7 +160,7 @@ def test_outbox_remains_unchanged_when_operation_rolls_back():
 
 def test_gear_sale_and_expiry_queue_once_with_real_escrow():
     from gear import create_gear
-    from gear_market import list_gear, buy_gear, expire_sales
+    from gear_market import GearSale, list_gear, buy_gear, expire_sales
     seller_id, buyer_id = 986401, 986402
     with TestClient(app) as client:
         choose(client, seller_id)
@@ -177,8 +177,7 @@ def test_gear_sale_and_expiry_queue_once_with_real_escrow():
             one, two = sale1.id, sale2.id
         with SessionLocal.begin() as db:
             buy_gear(db, db.get(Player, buyer_id), one)
-            expired = db.scalar(select(__import__('gear_market').GearSale).where(
-                __import__('gear_market').GearSale.id == two))
+            expired = db.scalar(select(GearSale).where(GearSale.id == two))
             expired.expires_at = now() - timedelta(seconds=1)
             assert expire_sales(db) == 1
             assert expire_sales(db) == 0
