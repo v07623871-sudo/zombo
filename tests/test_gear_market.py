@@ -42,10 +42,13 @@ gear.GearItem, gear.MAX_GEAR = GearItem, 80
 gear.gear_view = lambda item: {'id':item.id,'name':'Автомат АК-47','rarity_name':'Редкий',
                               'rarity':item.rarity,'level':item.level,'slot':'weapon',
                               'power':30,'defense':0,'color':'#76aaff','icon':'🔫','equipped':item.equipped}
-previous = {name: sys.modules.get(name) for name in ('models', 'gear')}
+notifications_stub = types.ModuleType('notifications')
+notifications_stub.queue_notification = lambda *args, **kwargs: False
+previous = {name: sys.modules.get(name) for name in ('models', 'gear', 'notifications')}
 try:
     sys.modules['models'] = models
     sys.modules['gear'] = gear
+    sys.modules['notifications'] = notifications_stub
     spec = importlib.util.spec_from_file_location('gear_market_under_test', Path(__file__).resolve().parents[1] / 'gear_market.py')
     market = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(market)
