@@ -129,11 +129,11 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-app=FastAPI(title='ZOMBO · After the Fall',version='0.21.0',lifespan=lifespan)
+app=FastAPI(title='ZOMBO · After the Fall',version='0.22.0',lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
 @app.get('/health')
-def health():return {'status':'ok','game':'ZOMBO','version':'0.21.0'}
+def health():return {'status':'ok','game':'ZOMBO','version':'0.22.0'}
 
 @app.get('/ready')
 def readiness():
