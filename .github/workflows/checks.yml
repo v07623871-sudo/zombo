@@ -93,3 +93,14 @@ jobs:
           DEMO_MODE: '1'
           PUBLIC_URL: ''
         run: PYTHONPATH=. python scripts/verify_backup_restore_pg.py
+
+      - name: PostgreSQL dump and isolated restore drill
+        env:
+          DATABASE_URL: postgresql+psycopg://zombo_ci:zombo_ci_password@localhost:5432/zombo_ci
+          ZOMBO_TEST_DATABASE: '1'
+          BOT_TOKEN: ''
+          DEMO_MODE: '1'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          PYTHONPATH=. python scripts/verify_backup_restore_pg.py
