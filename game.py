@@ -1270,5 +1270,12 @@ def boss_sync(db):
         b.name=successor['name']
         b.max_hp=successor['max_hp']
         b.hp=successor['max_hp']
-        b.spawn_at=stamp
+        # BossHit identifies cycles by epoch second. After manual/test
+        # rotations in the same second, reusing it would mix old damage,
+        # pay wrong leaders and incorrectly enforce the hit cooldown.
+        cycle_start=stamp
+        while db.scalar(select(BossHit.id).where(
+                BossHit.spawn_at==str(int(cycle_start.timestamp()))).limit(1)):
+            cycle_start+=timedelta(seconds=1)
+        b.spawn_at=cycle_start
     return b
