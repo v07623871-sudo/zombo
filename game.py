@@ -848,7 +848,14 @@ def item_count(db,pid,key):
 
 def give_item(db,pid,key,qty=1):
     if key not in ITEMS or qty<=0: raise ValueError('Неизвестный предмет')
-    stack=db.scalar(select(ItemStack).where(ItemStack.player_id==pid, ItemStack.item_key==key, ItemStack.equipped==False).with_for_update())
+    # SessionLocal has autoflush=False: a prior grant in this same transaction
+    # can still be pending and is invisible to SELECT. Reuse its ORM object
+    # instead of inserting a second row and violating unique_inventory_stack.
+    stack=next((x for x in db.new if isinstance(x,ItemStack)
+                and x.player_id==pid and x.item_key==key and not x.equipped),None)
+    if stack is None:
+        stack=db.scalar(select(ItemStack).where(ItemStack.player_id==pid,
+                         ItemStack.item_key==key,ItemStack.equipped==False).with_for_update())
     if stack:stack.quantity+=qty
     else:db.add(ItemStack(player_id=pid,item_key=key,quantity=qty,equipped=False))
 
