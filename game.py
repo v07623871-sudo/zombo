@@ -822,12 +822,12 @@ def pet_combat_action(db,p,b):
         msg+=f'+{healed} HP и заслон'
     elif key=='cat':
         material=random.choice(['wood','metal','cloth','wire','rubber'])
-        give_item(db,p.id,material,1)
-        msg+='добыт '+ITEMS[material]['name']
+        b.log=[*(b.log or []),'!pet:loot:'+material]
+        msg+='найден '+ITEMS[material]['name']+' (заберёшь после победы)'
     else:  # Raven: guaranteed one useful supply rather than unlimited currency.
         material=random.choice(['medkit','water','food','wire'])
-        give_item(db,p.id,material,1)
-        msg+='найден '+ITEMS[material]['name']
+        b.log=[*(b.log or []),'!pet:loot:'+material]
+        msg+='найден '+ITEMS[material]['name']+' (заберёшь после победы)'
     return msg,extra_dodge
 
 
@@ -1119,6 +1119,14 @@ def combat_round(db,p,b,action,zone='body'):
         territorial_tax=zombie_tax(db,p,caps)
         p.caps+=caps-territorial_tax
         loot=[]
+        # A companion's supply is earned by surviving the encounter; fleeing
+        # or dying must not mint free items. Persist pending loot in the
+        # battle's server-side log until this transactional victory payout.
+        pending=next((line.rsplit(':',1)[-1] for line in (b.log or [])
+                      if line.startswith('!pet:loot:')),None)
+        if pending in ITEMS:
+            give_item(db,p.id,pending,1)
+            loot.append(pending)
         loot_bonus=2 if p.loot_boost_until and aware(p.loot_boost_until)>now() else 1
         if random.random()<min(.98,.44*CLASSES[p.hero_class]['loot']*loot_bonus+talent_bonus(p,'loot')+pet_bonus(p,'loot')):
             pool=['wood','cloth','metal','food','water','medkit','wire']
@@ -1176,8 +1184,13 @@ def combat_round(db,p,b,action,zone='body'):
         healed=min(b.enemy_max_hp-b.enemy_hp,max(1,round(b.enemy_max_hp*.06)))
         b.enemy_hp+=healed
         if healed:msg+=f' · Регенерация: +{healed} HP'
-    history=[entry for entry in (b.log or []) if not entry.startswith('!elite:')]
-    b.log=([f'!elite:{elite}'] if elite else [])+history[-18:]+[msg,('↝ Уклонение! Урон не получен' if evaded else f'{b.enemy} наносит {received} урона')]
+    # Keep one-shot pet markers outside the rotating public combat history.
+    # Otherwise a long battle evicts !pet:used and allows endless replays.
+    pet_markers=[line for line in (b.log or []) if line.startswith('!pet:')]
+    history=[line for line in (b.log or [])
+             if not line.startswith(('!elite:','!pet:'))]
+    b.log=([f'!elite:{elite}'] if elite else [])+pet_markers[:2]+history[-18:]+[
+        msg,('↝ Уклонение! Урон не получен' if evaded else f'{b.enemy} наносит {received} урона')]
     if p.hp==0:
         p.hp=max(1,max_hp(p)//2)
         losses=death_penalty(db,p)
