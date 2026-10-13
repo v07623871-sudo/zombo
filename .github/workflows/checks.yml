@@ -84,3 +84,12 @@ jobs:
           PUBLIC_URL: ''
           TELEGRAM_WEBHOOK_SECRET: ''
         run: PYTHONPATH=. python scripts/verify_concurrency_pg.py
+
+      - name: PostgreSQL backup restore drill on disposable database
+        env:
+          DATABASE_URL: postgresql+psycopg://zombo_ci:zombo_ci_password@localhost:5432/zombo_ci
+          ZOMBO_TEST_DATABASE: '1'
+          BOT_TOKEN: ''
+          DEMO_MODE: '1'
+          PUBLIC_URL: ''
+        run: PYTHONPATH=. python scripts/verify_backup_restore_pg.py
