@@ -18,7 +18,7 @@ from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, 
                     MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, StarInvoice, PaymentReview, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
 from game import (ENEMIES, CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
                   aware, max_hp, gain_xp, give_item, take_item, item_count, tick, spend_stamina,
-                  player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync, SHOP_PRICES, CONSUMABLE_EFFECTS, scavenge_pool)
+                  player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync, SHOP_PRICES, CONSUMABLE_EFFECTS, scavenge_pool, PETS, pet_status)
 
 from clan_wars import (WAR_TIMEZONE, LOCATION_TERRITORY, MIN_BID, phase, next_war_date, war_date_for_bid,
     can_command, bid as place_bid, appoint as appoint_warlord, roster as set_roster, war_action,
@@ -129,7 +129,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.25.0'
+APP_VERSION='0.26.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -238,7 +238,7 @@ def with_player(request:Request, db: Session):
     return p
 
 @app.get('/api/config')
-def config():return {'enemies':ENEMIES,'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES,'war_timezone':WAR_TIMEZONE,'location_territories':LOCATION_TERRITORY}
+def config():return {'enemies':ENEMIES,'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES,'war_timezone':WAR_TIMEZONE,'location_territories':LOCATION_TERRITORY,'pets':PETS,'pet_adoption':{'random':750,'chosen':1250}}
 
 @app.get('/api/me')
 def me(request:Request,db:Session=Depends(db_session)):
@@ -817,6 +817,24 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
         return {'message':f'Дуэль завершена. Победитель: {winner.name}'}
 
 SHOP={key:{'caps':price} for key,price in SHOP_PRICES.items()}
+
+@app.post('/api/pets/adopt')
+def adopt_pet(body:Choice,request:Request,db:Session=Depends(db_session)):
+    """Merchant companion: random rescue is cheaper than choosing a species."""
+    with db.begin():
+        p=with_player(request,db);ready(p)
+        if pet_status(p):raise ValueError('У тебя уже есть питомец')
+        if body.key!='random' and body.key not in PETS:
+            raise ValueError('Неизвестный питомец')
+        cost=750 if body.key=='random' else 1250
+        if p.caps<cost:raise ValueError(f'Для приручения нужно {cost} крышек')
+        key=secrets.choice(tuple(PETS)) if body.key=='random' else body.key
+        p.caps-=cost
+        p.stats={**(p.stats or {}),'_pet':{'key':key,'level':1,'xp':0}}
+        return {'message':f'{PETS[key]["icon"]} Теперь с тобой {PETS[key]["name"]}. '
+                          'Помощь в бою доступна один раз за столкновение.',
+                'pet':pet_status(p)}
+
 
 @app.get('/api/shop')
 def shop():return [{'key':k,'price':v['caps'],**ITEMS[k]} for k,v in SHOP.items()]
