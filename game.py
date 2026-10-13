@@ -1,13 +1,13 @@
 import random, math
-from datetime import timedelta
+from datetime import timedelta, datetime
 from sqlalchemy import select, func
 from models import now, Player, ItemStack, Battle, WorldBoss, BossHit, QuestProgress, Territory
 
 CLASSES = {
-    'medic': {'name':'Врач','icon':'✚','subtitle':'Медик отряда','color':'#6dc7ba','bonus':'Лечение ×2 · регенерация','power':1.00,'healing':2.0,'loot':1.0,'crit':0.05,'hp':110},
+    'medic': {'name':'Врач','icon':'✚','subtitle':'Медик отряда','color':'#6dc7ba','bonus':'Лечение ×2 · регенерация 5% HP/ход','power':1.00,'healing':2.0,'loot':1.0,'crit':0.05,'hp':110},
     'soldier': {'name':'Коп','icon':'✦','subtitle':'Стальная дисциплина','color':'#8db4e2','bonus':'Урон ×1.15 · крепкая броня','power':1.15,'healing':1.0,'loot':1.0,'crit':0.08,'hp':125},
-    'assassin': {'name':'Убийца','icon':'⚔','subtitle':'Бесшумная смерть','color':'#ec8d83','bonus':'Урон ×1.25 · шанс критического удара','power':1.25,'healing':0.7,'loot':1.0,'crit':0.20,'hp':95},
-    'thief': {'name':'Вор','icon':'◈','subtitle':'Тень пустоши','color':'#d8b66f','bonus':'Добыча ×1.80 · уклонение','power':0.9,'healing':1.1,'loot':1.8,'crit':0.10,'hp':100},
+    'assassin': {'name':'Убийца','icon':'⚔','subtitle':'Бесшумная смерть','color':'#ec8d83','bonus':'Урон ×1.25 · крит · −10% входящего урона','power':1.25,'healing':0.7,'loot':1.0,'crit':0.18,'hp':95,'mitigation':.10},
+    'thief': {'name':'Вор','icon':'◈','subtitle':'Тень пустоши','color':'#d8b66f','bonus':'Добыча ×1.80 · +25% уклонения','power':0.9,'healing':1.1,'loot':1.8,'crit':0.10,'hp':100,'dodge':.25},
 }
 SKILLS = {
     'medic': [('healer','Полевой врач','Сильнее аптечки'),('regeneration','Регенерация','Восстановление здоровья'),('energy','Стимулятор','Экономия выносливости'),('antidote','Антидот','Защита от яда'),('guard','Защита','Меньше входящего урона'),('master','Главврач','Особое мастерство')],
@@ -174,6 +174,9 @@ RECIPES = {
     'vest': {'qty':1,'cost':{'cloth':8,'metal':6}},
     'rifle': {'qty':1,'cost':{'metal':20,'wire':8,'rubber':6,'rare':2}},
 }
+SHOP_PRICES = {'medkit':55,'food':25,'water':20,'knife':80,'vest':300,'pistol':420}
+STAMINA_REGEN_PER_TICK = 5  # 5 / 5 min ≈ 60/hour; a usable free-player economy.
+
 QUESTS = {
     'kills':{'name':'Чистка периметра','description':'Победить 5 заражённых','target':5,'reward':{'caps':120,'xp':180}},
     'scavenge':{'name':'Собиратель','description':'Найти припасы 8 раз','target':8,'reward':{'caps':100,'xp':100}},
@@ -248,12 +251,51 @@ def spend_stamina(p, cost):
 def tick(p):
     current=now()
     elapsed=max(0,(current-aware(p.last_tick or current)).total_seconds())
-    regen=int(elapsed//300)*(4 if p.vip_until and aware(p.vip_until)>current else 2)
+    regen=int(elapsed//300)*STAMINA_REGEN_PER_TICK*(2 if p.vip_until and aware(p.vip_until)>current else 1)
     regen=int(regen*(1+talent_bonus(p,'energy')))
     if regen>0:
         p.stamina=min(500,p.stamina+regen)
         p.hp=min(max_hp(p),p.hp+int(elapsed//3600)*(1+p.stats.get('regen',0)+int(talent_bonus(p,'regen'))))
         p.last_tick=current
+
+def insurance_active(p, *, at=None):
+    """Whether purchased one-day protection still covers this character."""
+    raw=(p.stats or {}).get('_insurance_until')
+    if not isinstance(raw,str):return False
+    try:return aware(datetime.fromisoformat(raw))>(at or now())
+    except ValueError:return False
+
+
+def death_penalty(db,p):
+    """Apply the documented death sink once, within the fight transaction.
+
+    Stackable non-equipped supplies are at risk; bound/equipped weapons and
+    unique gear are protected to avoid deleting paid/rare persistent assets.
+    """
+    protected=insurance_active(p)
+    caps_percent=.05 if protected else .20
+    xp_percent=.10 if protected else .30
+    items_percent=.10 if protected else .50
+    lost_caps=min(p.caps,int(max(0,p.caps)*caps_percent))
+    lost_xp=int(max(0,p.xp)*xp_percent)
+    p.caps-=lost_caps
+    p.xp=max(0,p.xp-lost_xp)
+    stacks=list(db.scalars(select(ItemStack).where(
+        ItemStack.player_id==p.id,ItemStack.equipped.is_(False))
+        .order_by(ItemStack.item_key,ItemStack.id).with_for_update()))
+    at_risk=sum(max(0,s.quantity) for s in stacks)
+    left=int(at_risk*items_percent)
+    removed=0
+    for stack in stacks:
+        if not left:break
+        count=min(left,max(0,stack.quantity))
+        if not count:continue
+        left-=count
+        removed+=count
+        if count==stack.quantity:db.delete(stack)
+        else:stack.quantity-=count
+    return {'caps':lost_caps,'xp':lost_xp,'items':removed,'insured':protected}
+
 
 def gain_xp(p, amount):
     if p.vip_until and aware(p.vip_until)>now():amount=int(amount*1.2)
@@ -342,6 +384,7 @@ def combat_round(db,p,b,action,zone='body'):
     if action not in ('attack','medkit','flee','defend','skill'):raise ValueError('Неизвестное действие')
     elite=elite_modifier(b)
     if action=='flee':
+        spend_stamina(p,2)
         db.delete(b)
         return {'finished':True,'won':False,'fled':True,'message':'Удалось ускользнуть от заражённого'}
     extra_dodge=0
@@ -367,7 +410,7 @@ def combat_round(db,p,b,action,zone='body'):
             if zone not in ('head','body','legs'):raise ValueError('Неверная зона')
             spend_stamina(p,2)
             rank=0
-        accuracy={'head':.68,'body':.94,'legs':.99}.get(zone,.96)+p.stats.get('accuracy',0)*.005+talent_bonus(p,'accuracy')
+        accuracy={'head':.68,'body':.94,'legs':.99}.get(zone,.96)+min(.25,max(0,p.stats.get('accuracy',0))*.005)+talent_bonus(p,'accuracy')
         damage_multiplier={'head':1.5,'body':1.0,'legs':.7}.get(zone,1.0)
         if action=='skill':
             if p.hero_class=='medic':
@@ -389,7 +432,7 @@ def combat_round(db,p,b,action,zone='body'):
         else:msg=''
         d=max(1,int(attack_power(db,p)*damage_multiplier*random.uniform(.8,1.2)))
         if random.random()>min(.99,accuracy):d=0
-        crit=random.random()<min(.75,CLASSES[p.hero_class]['crit']+p.stats.get('agility',0)*.004+talent_bonus(p,'crit')+(0.13 if action=='skill' and p.hero_class=='assassin' else 0))
+        crit=random.random()<min(.75,CLASSES[p.hero_class]['crit']+p.stats.get('agility',0)*.004+p.stats.get('luck',0)*.003+talent_bonus(p,'crit')+(0.13 if action=='skill' and p.hero_class=='assassin' else 0))
         if crit:d*=2
         if b.enemy_hp<=b.enemy_max_hp*.35:d=int(d*(1+talent_bonus(p,'execute')))
         enemy_key, enemy = enemy_info(b.kind)
@@ -436,7 +479,7 @@ def combat_round(db,p,b,action,zone='body'):
         from gear import roll_drop,gear_view
         rare_drop=None
         threat=LOCATIONS.get(p.location,{}).get('threat',1)
-        if random.random()<min(.30,.055+.023*threat+(.10 if elite else 0)):
+        if random.random()<min(.30,.055+.023*threat+(.10 if elite else 0)+max(0,p.stats.get('luck',0))*.01):
             try:
                 rare_drop=gear_view(roll_drop(db,p.id,threat,minimum='uncommon' if elite else 'common'))
             except ValueError:pass  # A full gear locker must never cancel a won battle.
@@ -455,9 +498,14 @@ def combat_round(db,p,b,action,zone='body'):
         # Defending in the telegraphed turn halves the special's raw damage.
         if action=='defend':raw=max(1,raw//2)
     if elite=='frenzy':raw=max(1,round(raw*1.18))
-    evade_chance=min(.7,talent_bonus(p,'dodge')+extra_dodge)
+    if p.hero_class=='medic':
+        # Baseline class perk: 5% max HP restored during a combat turn.
+        healed=min(max_hp(p)-p.hp,max(1,round(max_hp(p)*.05)))
+        p.hp+=healed
+        if healed:msg+=f' · +{healed} HP (регенерация врача)'
+    evade_chance=min(.7,CLASSES[p.hero_class].get('dodge',0)+max(0,p.stats.get('agility',0))*.005+talent_bonus(p,'dodge')+extra_dodge)
     evaded=random.random()<evade_chance
-    received=0 if evaded else max(1,round(raw*(1-min(.70,talent_bonus(p,'mitigation')+talent_bonus(p,'armor')))))
+    received=0 if evaded else max(1,round(raw*(1-min(.70,CLASSES[p.hero_class].get('mitigation',0)+talent_bonus(p,'mitigation')+talent_bonus(p,'armor')))))
     p.hp=max(0,p.hp-received)
     drained=0
     if special and not evaded and action!='defend' and enemy['trait'] in ('acid','howl'):
@@ -483,13 +531,14 @@ def combat_round(db,p,b,action,zone='body'):
     b.log=([f'!elite:{elite}'] if elite else [])+history[-18:]+[msg,('↝ Уклонение! Урон не получен' if evaded else f'{b.enemy} наносит {received} урона')]
     if p.hp==0:
         p.hp=max(1,max_hp(p)//2)
-        loss=min(p.caps,int(p.caps*.2))
-        p.caps-=loss
-        p.xp=int(p.xp*.7)
+        losses=death_penalty(db,p)
         p.location='base'
         p.cooldown=now()+timedelta(seconds=30)
         db.delete(b)
-        return {'finished':True,'won':False,'message':f'Ты погибла в пустоши. Потеряно {loss} крышек и часть опыта'}
+        return {'finished':True,'won':False,'losses':losses,
+                'message':f'Ты погибла в пустоши. Потери: {losses["caps"]} крышек, '
+                          f'{losses["xp"]} XP и {losses["items"]} припасов.'
+                          + (' Страховка сработала!' if losses['insured'] else '')}
     return {'finished':False,'message':msg,'battle':battle_view(b)}
 
 def spawn_battle(db,p):
