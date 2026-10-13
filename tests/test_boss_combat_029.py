@@ -144,3 +144,24 @@ def test_phase_thresholds_and_special_attack_names():
         assert combat_phase(b)=='Ярость'
         assert boss_profile(b)['attack_name']==profile['attack_name']
         assert boss_profile(b)['mechanic']
+
+
+def test_expired_boss_never_reuses_existing_recent_cycle_id():
+    pid=99329005
+    with TestClient(app) as api:
+        setup_player(api,pid)
+        candidate=str(int(now().timestamp()))
+        with SessionLocal.begin() as db:
+            b=db.get(WorldBoss,1)
+            if b is None:
+                b=WorldBoss(id=1,name='Гниющий колосс',max_hp=500000,hp=1)
+                db.add(b)
+            b.name='Гниющий колосс'
+            b.max_hp=500000;b.hp=1
+            b.spawn_at=now()-timedelta(days=4)
+            db.add(BossHit(player_id=pid,spawn_at=candidate,damage=999))
+        output=api.get('/api/boss')
+        assert output.status_code==200,output.text
+        assert output.json()['spawn_at']!=candidate
+        # Old damage from a colliding epoch-second cannot carry into the new boss.
+        assert output.json()['top']==[]
