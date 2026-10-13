@@ -78,7 +78,7 @@ def test_economy_cycle_is_deterministic_nonnegative_and_bounded():
     assert a['medkits_used']>=0
     assert a['level_ups']>=0
     assert a['territory_tax']>=0
-    assert a['gross_combat_caps']+a['daily_caps']+a['quest_caps']-a['territory_tax']-a['death_losses']==a['net_caps']
+    assert a['gross_combat_caps']+a['daily_caps']+a['quest_caps']-a['territory_tax']-a['death_losses']-a['merchant_spend']==a['net_caps']
     taxed=sim.simulate('forest','soldier',days=7,actions=12,seed=11,taxed=False)
     assert taxed['territory_tax']==0
     assert taxed['net_caps']>=a['net_caps']

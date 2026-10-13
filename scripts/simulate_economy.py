@@ -13,11 +13,11 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from game import CLASSES, ENEMIES, LOCATIONS, RECIPES, QUESTS, choose_enemy, choose_elite_modifier, xp_needed
+from game import CLASSES, ENEMIES, LOCATIONS, RECIPES, QUESTS, choose_enemy, choose_elite_modifier, xp_needed, SHOP_PRICES, STAMINA_REGEN_PER_TICK
 
 DAYS_MAX=90
 RUNS_MAX=2000
-DAILY_STAMINA_REGEN=24*60//5*2
+DAILY_STAMINA_REGEN=24*60//5*STAMINA_REGEN_PER_TICK
 ZONES=('forest','city','factory','hospital','wasteland')
 BASIC_WEAPONS={'forest':7,'city':14,'factory':14,'hospital':25,'wasteland':25}
 
@@ -61,6 +61,12 @@ def heal_if_needed(state):
         if all(state['materials'][k]>=v for k,v in recipe.items()):
             for k,v in recipe.items():state['materials'][k]-=v
             state['medkits']+=1;state['crafted_medkits']+=1
+    if state['medkits']<=0 and state['caps']>=SHOP_PRICES['medkit']:
+        # A real player can buy medicine instead of taking endless deaths.
+        state['caps']-=SHOP_PRICES['medkit']
+        state['merchant_spend']+=SHOP_PRICES['medkit']
+        state['medkits_bought']+=1
+        state['medkits']+=1
     if state['medkits']>0:
         state['medkits']-=1;state['medkits_used']+=1
         healed=int(45*CLASSES[state['class']]['healing'])
@@ -129,7 +135,13 @@ def battle(state,rng,zone,*,ambush=False,taxed=True):
             raw=max(1,round(raw*{'frenzy':1.45,'acid':1.28,'smash':1.60,
                                   'howl':1.20,'ambush':1.36}[enemy['trait']]))
         if elite=='frenzy':raw=max(1,round(raw*1.18))
-        state['hp']=max(0,state['hp']-raw)
+        # Mirror baseline class perks: thief dodge, assassin mitigation,
+        # medic combat healing. Talent/equipment builds are excluded.
+        if state['class']=='medic':
+            state['hp']=min(max_hp(state),state['hp']+max(1,round(max_hp(state)*.05)))
+        if rng.random()>=CLASSES[state['class']].get('dodge',0):
+            raw=max(1,round(raw*(1-CLASSES[state['class']].get('mitigation',0))))
+            state['hp']=max(0,state['hp']-raw)
         if special and enemy['trait'] in ('acid','howl'):
             state['stamina']=max(0,state['stamina']-(6 if enemy['trait']=='acid' else 4))
         if special and elite=='venom':
@@ -140,6 +152,15 @@ def battle(state,rng,zone,*,ambush=False,taxed=True):
             lost=min(state['caps'],int(state['caps']*.2))
             state['caps']-=lost;state['death_losses']+=lost
             state['xp']=int(state['xp']*.7)
+            # Uninsured deaths also remove 50% of unequipped, stackable supplies.
+            all_supply=sum(state['materials'].values())+state['medkits']
+            to_lose=int(all_supply*.5)
+            for key in sorted(state['materials']):
+                removed=min(state['materials'][key],to_lose)
+                state['materials'][key]-=removed
+                to_lose-=removed
+            if to_lose:
+                state['medkits']-=min(state['medkits'],to_lose)
             state['hp']=max(1,max_hp(state)//2)
             # Death returns to base and short cooldown; travel is not priced.
             return False
@@ -151,7 +172,7 @@ def simulate(zone,hero_class,days,actions,seed,taxed=True):
         raise ValueError('Unrecognised zone or class')
     rng=random.Random(seed)
     state={'class':hero_class,'level':LOCATIONS[zone]['min_level'],'xp':0,'level_ups':0,
-           'caps':150,'gross_caps':0,'quest_caps':0,'death_losses':0,'tax_paid':0,
+           'caps':150,'gross_caps':0,'quest_caps':0,'death_losses':0,'merchant_spend':0,'medkits_bought':0,'tax_paid':0,
            'tax_carry':0,'stamina':200,'hp':0,'wins':0,'battles':0,'deaths':0,
            'scavenges':0,'medkits':2,'medkits_used':0,'crafted_medkits':0,
            'gear_drops':0,'loot_items':0,'elite_fights':0,'fled_energy':0,
@@ -161,7 +182,7 @@ def simulate(zone,hero_class,days,actions,seed,taxed=True):
     energy_waste=0
     for day in range(days):
         if day:
-            # Regen in game.tick: two energy per five minutes. The 500
+            # Regen in game.tick: STAMINA_REGEN_PER_TICK energy per 5 min. The 500
             # stamina cap discards overflow after an inactive day.
             before=state['stamina']
             state['stamina']=min(500,state['stamina']+DAILY_STAMINA_REGEN)
@@ -185,7 +206,8 @@ def simulate(zone,hero_class,days,actions,seed,taxed=True):
             'net_caps':state['caps']-150,
             'gross_combat_caps':state['gross_caps'],'daily_caps':75*days,
             'quest_caps':state['quest_caps'],'territory_tax':state['tax_paid'],
-            'death_losses':state['death_losses'],
+            'death_losses':state['death_losses'],'merchant_spend':state['merchant_spend'],
+             'medkits_bought':state['medkits_bought'],
             'fights':state['battles'],'wins':state['wins'],
             'deaths':state['deaths'],'scavenges':state['scavenges'],
             'medkits_used':state['medkits_used'],'medkits_crafted':state['crafted_medkits'],
@@ -197,7 +219,7 @@ def simulate(zone,hero_class,days,actions,seed,taxed=True):
 
 def aggregate(zone,hero_class,days,actions,runs,seed,taxed=True):
     results=[simulate(zone,hero_class,days,actions,seed+i*104729,taxed) for i in range(runs)]
-    fields=('final_level','net_caps','gross_combat_caps','territory_tax',
+    fields=('final_level','net_caps','gross_combat_caps','territory_tax','merchant_spend','medkits_bought',
             'death_losses','quest_caps','fights','wins','deaths','scavenges',
             'medkits_used','medkits_crafted','medkits_left','materials_left',
             'gear_drops','elite_fights','stamina_lost_to_cap')
@@ -227,7 +249,7 @@ def main(argv=None):
         'starting_gear':'Zone-appropriate common weapon; no talent bonuses or premium boosters.',
         'schedule':'Daily visit, +75 caps/+80 energy/+45 XP, regeneration between days, fixed actions/day.',
         'encounters':'42% scavenging, 58% combat, 14% scavenging ambushes, common body attacks.',
-        'money':'Includes once-only quests, death losses, 1% territory tax and crafting medkits with gathered items.',
+        'money':'Includes once-only quests, loss of caps/supplies on death, 1% territory tax, crafted and store-bought medkits.',
         'excluded':'Actual marketplace, rare gear effects, enemy AI other than named traits, PvP, additional world events, boss, hunger/thirst penalties, healing animations, card-selection time.'
     },'seed':args.seed,'scenarios':[
         aggregate(zone,hero,args.days,args.actions,args.runs,args.seed+i*100003)
