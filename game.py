@@ -753,6 +753,84 @@ def enemy_info(kind):
     return (key if key in ENEMIES else 'walker'), ENEMIES.get(key, ENEMIES['walker'])
 
 
+# Six permanent companions. Saved in Player.stats JSON, no schema migration.
+PETS = {
+    'wolf': {'name':'Волк','icon':'🐺','bonus':'power','per_level':.025,'ability':'Укус'},
+    'dog': {'name':'Пёс','icon':'🐕','bonus':'dodge','per_level':.020,'ability':'Заслон'},
+    'cat': {'name':'Кот','icon':'🐈','bonus':'loot','per_level':.025,'ability':'Кража'},
+    'eagle': {'name':'Орёл','icon':'🦅','bonus':'crit','per_level':.012,'ability':'Метка'},
+    'boar': {'name':'Кабан','icon':'🐗','bonus':'mitigation','per_level':.015,'ability':'Таран'},
+    'raven': {'name':'Ворон','icon':'🐦‍⬛','bonus':'rare','per_level':.007,'ability':'Удача'},
+}
+
+
+def pet_status(p):
+    data=(p.stats or {}).get('_pet')
+    if not isinstance(data,dict) or data.get('key') not in PETS:return None
+    level=max(1,min(10,int(data.get('level',1))))
+    return {'key':data['key'],'level':level,'xp':max(0,int(data.get('xp',0))),
+            'xp_next':level*5 if level<10 else 0,**PETS[data['key']]}
+
+
+def pet_bonus(p,effect):
+    pet=pet_status(p)
+    return pet['per_level']*pet['level'] if pet and pet['bonus']==effect else 0
+
+
+def pet_victory(p):
+    """A victory develops an existing companion and cannot exceed level 10."""
+    pet=pet_status(p)
+    if not pet or pet['level']>=10:return
+    level=pet['level'];xp=pet['xp']+1
+    if xp>=level*5:
+        xp-=level*5;level+=1
+    data=dict(p.stats or {})
+    data['_pet']={'key':pet['key'],'level':level,'xp':xp}
+    p.stats=data
+
+
+def pet_try_find(p):
+    """0.5% companion find on the first eligible won PvE battle."""
+    if pet_status(p) or random.random()>=.005:return None
+    key=random.choice(tuple(PETS))
+    data=dict(p.stats or {})
+    data['_pet']={'key':key,'level':1,'xp':0}
+    p.stats=data
+    return key
+
+
+def pet_combat_action(db,p,b):
+    """One manual companion action per encounter; the enemy retaliates normally."""
+    pet=pet_status(p)
+    if not pet:raise ValueError('Сначала найди питомца')
+    if any(entry=='!pet:used' for entry in (b.log or [])):
+        raise ValueError('Питомец уже помог в этом бою')
+    spend_stamina(p,3)
+    b.log=[*(b.log or []),'!pet:used']
+    key,level=pet['key'],pet['level']
+    damage=0;extra_dodge=0
+    msg=pet['icon']+' '+pet['ability']+': '
+    if key in ('wolf','boar','eagle'):
+        mult={'wolf':.85,'boar':.65,'eagle':.50}[key]
+        damage=max(1,round(attack_power(db,p)*mult*(1+level*.05)))
+        b.enemy_hp=max(0,b.enemy_hp-damage)
+        msg+=f'{damage} урона'
+        if key=='boar':extra_dodge=.35
+    elif key=='dog':
+        healed=min(max_hp(p)-p.hp,10+level*4)
+        p.hp+=healed;extra_dodge=.4
+        msg+=f'+{healed} HP и заслон'
+    elif key=='cat':
+        material=random.choice(['wood','metal','cloth','wire','rubber'])
+        give_item(db,p.id,material,1)
+        msg+='добыт '+ITEMS[material]['name']
+    else:  # Raven: guaranteed one useful supply rather than unlimited currency.
+        material=random.choice(['medkit','water','food','wire'])
+        give_item(db,p.id,material,1)
+        msg+='найден '+ITEMS[material]['name']
+    return msg,extra_dodge
+
+
 def aware(dt):
     if not dt: return None
     from datetime import timezone
@@ -886,6 +964,7 @@ def player_view(db,p):
         'talent_ranks':{n['key']:talent_rank(p,n['key']) for br in SKILL_TREES.get(p.hero_class,[]) for n in br['nodes']},
         'talent_bonuses':talent_bonuses(p),'talent_spent':len(p.skills or []),
         'talent_reset_cost':talent_reset_cost(p),
+        'pet':pet_status(p),
         'enemy_codex':(p.stats or {}).get('_enemy_codex',{}),
         'gear':gear_list(db,p.id),'gear_stats':gear_stats(db,p.id),
         'hp':p.hp,'max_hp':max_hp(p),'stamina':p.stamina,'max_stamina':500,'hunger':p.hunger,'thirst':p.thirst,'caps':p.caps,
@@ -894,7 +973,7 @@ def player_view(db,p):
 
 def battle_view(b):
     if not b:return None
-    public_log=[v for v in (b.log or []) if not v.startswith(('!ability:', '!elite:'))]
+    public_log=[v for v in (b.log or []) if not v.startswith(('!ability:', '!elite:', '!pet:'))]
     used={}
     for v in (b.log or []):
         if v.startswith('!ability:'):
@@ -905,7 +984,7 @@ def battle_view(b):
     elite=elite_modifier(b)
     return {'id':b.id,'enemy':b.enemy,'enemy_id':key,'enemy_type':enemy['family'],'trait':enemy['trait'],'skill':enemy['skill'],'tier':enemy['tier'],'lore':enemy['lore'],'hp':b.enemy_hp,'max_hp':b.enemy_max_hp,'turn':b.turn,
             'elite':{'key':elite,**ELITE_MODIFIERS[elite]} if elite else None,
-            'log':public_log[-6:],'incoming_special':(enemy['trait'] not in ('none','armor') or elite=='venom') and (b.turn+1)%3==0,
+            'log':public_log[-6:],'pet_available':not any(x=='!pet:used' for x in (b.log or [])),'incoming_special':(enemy['trait'] not in ('none','armor') or elite=='venom') and (b.turn+1)%3==0,
             'elite_warning':(enemy['skill']+' + ядовитый укус' if enemy['trait'] not in ('none','armor') else 'Ядовитый укус') if elite=='venom' and (b.turn+1)%3==0 else None,
             'tactics':ENEMY_TACTICS[key],'ability_cooldowns':{key:max(0,3-(b.turn-turn)) for key,turn in used.items()}}
 
@@ -915,10 +994,10 @@ def attack_power(db,p):
     from gear import gear_stats
     w=gear_stats(db,p.id)['power'] or w
     cls=CLASSES.get(p.hero_class,CLASSES['soldier'])
-    return max(1,int((7+p.level*2+p.stats.get('strength',0)*2+w)*cls['power']*(1+talent_bonus(p,'power'))))
+    return max(1,int((7+p.level*2+p.stats.get('strength',0)*2+w)*cls['power']*(1+talent_bonus(p,'power')+pet_bonus(p,'power'))))
 
 def combat_round(db,p,b,action,zone='body'):
-    if action not in ('attack','medkit','flee','defend','skill'):raise ValueError('Неизвестное действие')
+    if action not in ('attack','medkit','flee','defend','skill','pet'):raise ValueError('Неизвестное действие')
     elite=elite_modifier(b)
     if action=='flee':
         spend_stamina(p,2)
@@ -930,6 +1009,7 @@ def combat_round(db,p,b,action,zone='body'):
         heal=int(45*CLASSES[p.hero_class]['healing']*(1+talent_bonus(p,'healing')))
         p.hp=min(max_hp(p),p.hp+heal)
         msg=f'Использована аптечка: +{heal} HP'
+    elif action=='pet':msg,extra_dodge=pet_combat_action(db,p,b)
     elif action=='defend':msg='Защитная стойка: урон противника уменьшен'
     else:
         if action=='skill':
@@ -969,7 +1049,7 @@ def combat_round(db,p,b,action,zone='body'):
         else:msg=''
         d=max(1,int(attack_power(db,p)*damage_multiplier*random.uniform(.8,1.2)))
         if random.random()>min(.99,accuracy):d=0
-        crit=random.random()<min(.75,CLASSES[p.hero_class]['crit']+p.stats.get('agility',0)*.004+p.stats.get('luck',0)*.003+talent_bonus(p,'crit')+(0.13 if action=='skill' and p.hero_class=='assassin' else 0))
+        crit=random.random()<min(.75,CLASSES[p.hero_class]['crit']+p.stats.get('agility',0)*.004+p.stats.get('luck',0)*.003+talent_bonus(p,'crit')+pet_bonus(p,'crit')+(0.13 if action=='skill' and p.hero_class=='assassin' else 0))
         if crit:d*=2
         if b.enemy_hp<=b.enemy_max_hp*.35:d=int(d*(1+talent_bonus(p,'execute')))
         enemy_key, enemy = enemy_info(b.kind)
@@ -985,6 +1065,8 @@ def combat_round(db,p,b,action,zone='body'):
         if action=='attack':msg+=f"Удар {dict(head='в голову',body='в тело',legs='по ногам')[zone]}"
         msg+=f": {d} урона"+(' · КРИТ!' if crit and d else '')
     if b.enemy_hp<=0:
+        pet_victory(p)
+        new_pet=pet_try_find(p)
         enemy_key, enemy = enemy_info(b.kind)
         p.kills+=1
         first_discovery=record_enemy(p,enemy_key,defeated=True)
@@ -1008,7 +1090,7 @@ def combat_round(db,p,b,action,zone='body'):
         p.caps+=caps-territorial_tax
         loot=[]
         loot_bonus=2 if p.loot_boost_until and aware(p.loot_boost_until)>now() else 1
-        if random.random()<min(.98,.44*CLASSES[p.hero_class]['loot']*loot_bonus+talent_bonus(p,'loot')):
+        if random.random()<min(.98,.44*CLASSES[p.hero_class]['loot']*loot_bonus+talent_bonus(p,'loot')+pet_bonus(p,'loot')):
             pool=['wood','cloth','metal','food','water','medkit','wire']
             key=random.choice(pool);give_item(db,p.id,key);loot.append(key)
             progress(db,p.id,'scavenge')
@@ -1016,13 +1098,13 @@ def combat_round(db,p,b,action,zone='body'):
         from gear import roll_drop,gear_view
         rare_drop=None
         threat=LOCATIONS.get(p.location,{}).get('threat',1)
-        if random.random()<min(.30,.055+.023*threat+(.10 if elite else 0)+max(0,p.stats.get('luck',0))*.01):
+        if random.random()<min(.30,.055+.023*threat+(.10 if elite else 0)+max(0,p.stats.get('luck',0))*.01+pet_bonus(p,'rare')):
             try:
                 rare_drop=gear_view(roll_drop(db,p.id,threat,minimum='uncommon' if elite else 'common'))
             except ValueError:pass  # A full gear locker must never cancel a won battle.
         progress(db,p.id,'kills')
         db.delete(b)
-        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps-territorial_tax} крышек'+(' · Элитная цель' if elite else '')+(f' · Налог территории: {territorial_tax}' if territorial_tax else '')+(' · Новый уровень!' if xp_levels else '')+(' · Новый вид в бестиарии: +25 XP, +15 крышек' if first_discovery else '')+(' · Найдена экипировка: '+rare_drop['rarity_name']+' '+rare_drop['name'] if rare_drop else ''),'gear_drop':rare_drop,'loot':loot,'tax':territorial_tax,'new_species':first_discovery,'elite':elite}
+        return {'finished':True,'won':True,'message':f'Победа! +{xp} XP, +{caps-territorial_tax} крышек'+(' · Элитная цель' if elite else '')+(f' · Налог территории: {territorial_tax}' if territorial_tax else '')+(' · Новый уровень!' if xp_levels else '')+(' · Новый вид в бестиарии: +25 XP, +15 крышек' if first_discovery else '')+(' · Найдена экипировка: '+rare_drop['rarity_name']+' '+rare_drop['name'] if rare_drop else ''),'gear_drop':rare_drop,'loot':loot,'tax':territorial_tax,'new_species':first_discovery,'elite':elite,'pet_found':new_pet}
     enemy_key, enemy = enemy_info(b.kind)
     defense=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key=='vest'))
     from gear import gear_stats
@@ -1040,9 +1122,9 @@ def combat_round(db,p,b,action,zone='body'):
         healed=min(max_hp(p)-p.hp,max(1,round(max_hp(p)*.05)))
         p.hp+=healed
         if healed:msg+=f' · +{healed} HP (регенерация врача)'
-    evade_chance=min(.7,CLASSES[p.hero_class].get('dodge',0)+max(0,p.stats.get('agility',0))*.005+talent_bonus(p,'dodge')+extra_dodge)
+    evade_chance=min(.7,CLASSES[p.hero_class].get('dodge',0)+max(0,p.stats.get('agility',0))*.005+talent_bonus(p,'dodge')+pet_bonus(p,'dodge')+extra_dodge)
     evaded=random.random()<evade_chance
-    received=0 if evaded else max(1,round(raw*(1-min(.70,CLASSES[p.hero_class].get('mitigation',0)+talent_bonus(p,'mitigation')+talent_bonus(p,'armor')))))
+    received=0 if evaded else max(1,round(raw*(1-min(.70,CLASSES[p.hero_class].get('mitigation',0)+pet_bonus(p,'mitigation')+talent_bonus(p,'mitigation')+talent_bonus(p,'armor')))))
     p.hp=max(0,p.hp-received)
     drained=0
     if special and not evaded and action!='defend' and enemy['trait'] in ('acid','howl'):
