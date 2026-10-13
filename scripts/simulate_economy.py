@@ -182,7 +182,7 @@ def simulate(zone,hero_class,days,actions,seed,taxed=True):
     energy_waste=0
     for day in range(days):
         if day:
-            # Regen in game.tick: two energy per five minutes. The 500
+            # Regen in game.tick: STAMINA_REGEN_PER_TICK energy per 5 min. The 500
             # stamina cap discards overflow after an inactive day.
             before=state['stamina']
             state['stamina']=min(500,state['stamina']+DAILY_STAMINA_REGEN)
@@ -219,7 +219,7 @@ def simulate(zone,hero_class,days,actions,seed,taxed=True):
 
 def aggregate(zone,hero_class,days,actions,runs,seed,taxed=True):
     results=[simulate(zone,hero_class,days,actions,seed+i*104729,taxed) for i in range(runs)]
-    fields=('final_level','net_caps','gross_combat_caps','territory_tax',
+    fields=('final_level','net_caps','gross_combat_caps','territory_tax','merchant_spend','medkits_bought',
             'death_losses','quest_caps','fights','wins','deaths','scavenges',
             'medkits_used','medkits_crafted','medkits_left','materials_left',
             'gear_drops','elite_fights','stamina_lost_to_cap')
@@ -249,7 +249,7 @@ def main(argv=None):
         'starting_gear':'Zone-appropriate common weapon; no talent bonuses or premium boosters.',
         'schedule':'Daily visit, +75 caps/+80 energy/+45 XP, regeneration between days, fixed actions/day.',
         'encounters':'42% scavenging, 58% combat, 14% scavenging ambushes, common body attacks.',
-        'money':'Includes once-only quests, death losses, 1% territory tax and crafting medkits with gathered items.',
+        'money':'Includes once-only quests, loss of caps/supplies on death, 1% territory tax, crafted and store-bought medkits.',
         'excluded':'Actual marketplace, rare gear effects, enemy AI other than named traits, PvP, additional world events, boss, hunger/thirst penalties, healing animations, card-selection time.'
     },'seed':args.seed,'scenarios':[
         aggregate(zone,hero,args.days,args.actions,args.runs,args.seed+i*100003)
