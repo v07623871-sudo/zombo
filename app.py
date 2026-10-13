@@ -18,7 +18,7 @@ from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, 
                     MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, StarInvoice, PaymentReview, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
 from game import (ENEMIES, CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
                   aware, max_hp, gain_xp, give_item, take_item, item_count, tick, spend_stamina,
-                  player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync, SHOP_PRICES, CONSUMABLE_EFFECTS, scavenge_pool, PETS, pet_status)
+                  player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync, WORLD_BOSS_ROTATION, SHOP_PRICES, CONSUMABLE_EFFECTS, scavenge_pool, PETS, pet_status)
 
 from clan_wars import (WAR_TIMEZONE, LOCATION_TERRITORY, MIN_BID, phase, next_war_date, war_date_for_bid,
     can_command, bid as place_bid, appoint as appoint_warlord, roster as set_roster, war_action,
@@ -129,7 +129,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.26.0'
+APP_VERSION='0.27.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -496,7 +496,13 @@ def world_boss(db:Session=Depends(db_session)):
         b=boss_sync(db)
         hits=db.execute(select(BossHit.player_id,func.sum(BossHit.damage)).where(BossHit.spawn_at==str(int(aware(b.spawn_at).timestamp()))).group_by(BossHit.player_id).order_by(func.sum(BossHit.damage).desc()).limit(10)).all()
         ids=[x[0] for x in hits];names={x.id:x.name for x in db.scalars(select(Player).where(Player.id.in_(ids)))}
-        return {'name':b.name,'hp':b.hp,'max_hp':b.max_hp,'spawn_at':str(int(aware(b.spawn_at).timestamp())),'ends_at':(aware(b.spawn_at)+timedelta(days=3)).isoformat(),
+        boss_info=next((config for config in WORLD_BOSS_ROTATION if config['name']==b.name),
+                       WORLD_BOSS_ROTATION[0])
+        return {'name':b.name,'hp':b.hp,'max_hp':b.max_hp,
+            'hint':boss_info['hint'],'cycle_bosses':len(WORLD_BOSS_ROTATION),
+            'top_prize':'Легендарная винтовка для лидера урона по окончании цикла',
+            'spawn_at':str(int(aware(b.spawn_at).timestamp())),
+            'ends_at':(aware(b.spawn_at)+timedelta(days=3)).isoformat(),
             'top':[{'name':names.get(pid,'Выживший'),'damage':dmg} for pid,dmg in hits]}
 
 @app.post('/api/boss/hit')

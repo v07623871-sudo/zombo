@@ -1185,6 +1185,47 @@ def spawn_battle(db,p):
     record_enemy(p,key)
     return battle_view(b)
 
+WORLD_BOSS_ROTATION = (
+    {'name':'Гниющий колосс','max_hp':500_000,'hint':'Массивный заражённый, обрушивающий укрепления.'},
+    {'name':'Матерь заражённых','max_hp':1_500_000,'hint':'Призывает рой и пожирает целые отряды.'},
+    {'name':'Токсичный исполин','max_hp':3_000_000,'hint':'Его тело отравило целый город.'},
+    {'name':'Радиоактивный левиафан','max_hp':6_000_000,'hint':'Тяжёлое заражение и радиационная броня.'},
+    {'name':'Жнец пустоши','max_hp':10_000_000,'hint':'Вершина пищевой цепи пустоши.'},
+)
+
+
+def _award_boss_cycle(db,old_spawn):
+    """Grant the top contributor one rolled legendary gear item, exactly once.
+
+    Called only while the sole WorldBoss row is locked and before its timestamp
+    advances. Any retries after transaction commit see the new timestamp.
+    """
+    from gear import create_gear
+    from models import Player
+    previous=str(int(aware(old_spawn).timestamp()))
+    leaders=db.execute(select(BossHit.player_id,func.sum(BossHit.damage))
+        .where(BossHit.spawn_at==previous)
+        .group_by(BossHit.player_id)
+        .order_by(func.sum(BossHit.damage).desc(),BossHit.player_id.asc())
+        .limit(1)).all()
+    if not leaders or int(leaders[0][1] or 0)<=0:return None
+    pid=leaders[0][0]
+    winner=db.scalar(select(Player).where(Player.id==pid).with_for_update())
+    if not winner:return None
+    try:
+        create_gear(db,pid,'rifle',rarity='legendary',source='boss')
+        result='легендарная винтовка'
+    except ValueError:
+        # Full item locker: reward non-equippable material instead of silently
+        # discarding the whole cycle's top contributor prize.
+        give_item(db,pid,'rare',8)
+        result='8 военных жетонов (хранилище переполнено)'
+    from notifications import queue_notification
+    queue_notification(db,pid,f'worldboss:{previous}:top1','raids','world_boss_top1',
+       f'🏆 Ты заняла 1-е место по урону мировому боссу! Награда: {result}.')
+    return pid
+
+
 def boss_sync(db):
     b=db.scalar(select(WorldBoss).where(WorldBoss.id==1).with_for_update())
     if not b:
@@ -1202,5 +1243,14 @@ def boss_sync(db):
         b=db.scalar(select(WorldBoss).where(WorldBoss.id==1).with_for_update())
     stamp=now()
     if stamp-aware(b.spawn_at)>timedelta(days=3):
-        b.spawn_at=stamp;b.hp=b.max_hp
+        _award_boss_cycle(db,b.spawn_at)
+        # Continue the five-boss loop while preserving the established
+        # single-row schema and earlier boss hit history.
+        index=next((i for i,config in enumerate(WORLD_BOSS_ROTATION)
+                    if config['name']==b.name),0)
+        successor=WORLD_BOSS_ROTATION[(index+1)%len(WORLD_BOSS_ROTATION)]
+        b.name=successor['name']
+        b.max_hp=successor['max_hp']
+        b.hp=successor['max_hp']
+        b.spawn_at=stamp
     return b
