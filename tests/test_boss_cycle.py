@@ -24,6 +24,7 @@ def test_attack_starts_new_boss_cycle_without_get_request():
             boss.spawn_at = now() - timedelta(days=4)
             db.flush()
             old_cycle = str(int(boss.spawn_at.timestamp()))
+            old_count = db.scalar(select(func.count()).select_from(BossHit).where(BossHit.spawn_at == old_cycle)) or 0
             db.add(BossHit(player_id=pid, spawn_at=old_cycle, damage=123))
         hit = client.post('/api/boss/hit', headers=headers)
         assert hit.status_code == 200, hit.text
@@ -36,4 +37,4 @@ def test_attack_starts_new_boss_cycle_without_get_request():
             hits = db.scalars(select(BossHit).where(BossHit.player_id == pid)).all()
             assert len(hits) == 2
             assert {h.spawn_at for h in hits} != {old_cycle}
-            assert db.scalar(select(func.count()).select_from(BossHit).where(BossHit.spawn_at == old_cycle)) == 1
+            assert db.scalar(select(func.count()).select_from(BossHit).where(BossHit.spawn_at == old_cycle)) == old_count + 1
