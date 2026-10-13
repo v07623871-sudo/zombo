@@ -18,7 +18,7 @@ from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, 
                     MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, StarInvoice, PaymentReview, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
 from game import (ENEMIES, CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
                   aware, max_hp, gain_xp, give_item, take_item, item_count, tick, spend_stamina,
-                  player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync)
+                  player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync, SHOP_PRICES)
 
 from clan_wars import (WAR_TIMEZONE, LOCATION_TERRITORY, MIN_BID, phase, next_war_date, war_date_for_bid,
     can_command, bid as place_bid, appoint as appoint_warlord, roster as set_roster, war_action,
@@ -129,7 +129,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.23.1'
+APP_VERSION='0.24.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -811,7 +811,7 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
         m.log=[*(m.log or []),f'{winner.name} побеждает в дуэли!'][-12:]
         return {'message':f'Дуэль завершена. Победитель: {winner.name}'}
 
-SHOP={'medkit':{'caps':55},'food':{'caps':25},'water':{'caps':20},'knife':{'caps':80},'vest':{'caps':300},'pistol':{'caps':420}}
+SHOP={key:{'caps':price} for key,price in SHOP_PRICES.items()}
 
 @app.get('/api/shop')
 def shop():return [{'key':k,'price':v['caps'],**ITEMS[k]} for k,v in SHOP.items()]
@@ -837,6 +837,7 @@ PREMIUM_OFFERS={
     'vip_30':{'name':'VIP на 30 дней','price':800,'days':30,'kind':'vip','desc':'Ускоренная энергия и +20% XP'},
     'xp_day':{'name':'×2 опыт на 24 часа','price':100,'days':1,'kind':'xp','desc':'Ускоренная прокачка'},
     'loot_day':{'name':'×2 шанс добычи на 24 часа','price':100,'days':1,'kind':'loot','desc':'Больше находок в PvE'},
+    'insurance_day':{'name':'Страховка на 24 часа','price':200,'days':1,'kind':'insurance','desc':'При смерти: −5% крышек, −10% XP и припасов вместо обычных потерь'},
 }
 
 @app.get('/api/premium')
@@ -850,10 +851,19 @@ def premium_buy(body:Choice,request:Request,db:Session=Depends(db_session)):
         if not offer:raise ValueError('Нет такого улучшения')
         if p.zombo<offer['price']:raise ValueError('Недостаточно Zombo')
         p.zombo-=offer['price']
-        field={'vip':'vip_until','xp':'xp_boost_until','loot':'loot_boost_until'}[offer['kind']]
-        end=getattr(p,field)
-        start=max(now(),aware(end)) if end else now()
-        setattr(p,field,start+timedelta(days=offer['days']))
+        if offer['kind']=='insurance':
+            from game import insurance_active
+            flags=dict(p.stats or {})
+            try:end=datetime.fromisoformat(flags['_insurance_until']) if insurance_active(p) else None
+            except (ValueError,KeyError):end=None
+            start=max(now(),aware(end)) if end else now()
+            flags['_insurance_until']=(start+timedelta(days=offer['days'])).isoformat()
+            p.stats=flags
+        else:
+            field={'vip':'vip_until','xp':'xp_boost_until','loot':'loot_boost_until'}[offer['kind']]
+            end=getattr(p,field)
+            start=max(now(),aware(end)) if end else now()
+            setattr(p,field,start+timedelta(days=offer['days']))
         return {'message':f'Активировано: {offer["name"]}'}
 
 @app.get('/api/stars')
