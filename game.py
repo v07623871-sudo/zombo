@@ -1186,11 +1186,26 @@ def spawn_battle(db,p):
     return battle_view(b)
 
 WORLD_BOSS_ROTATION = (
-    {'name':'Гниющий колосс','max_hp':500_000,'hint':'Массивный заражённый, обрушивающий укрепления.'},
-    {'name':'Матерь заражённых','max_hp':1_500_000,'hint':'Призывает рой и пожирает целые отряды.'},
-    {'name':'Токсичный исполин','max_hp':3_000_000,'hint':'Его тело отравило целый город.'},
-    {'name':'Радиоактивный левиафан','max_hp':6_000_000,'hint':'Тяжёлое заражение и радиационная броня.'},
-    {'name':'Жнец пустоши','max_hp':10_000_000,'hint':'Вершина пищевой цепи пустоши.'},
+    {'name':'Гниющий колосс','max_hp':500_000,
+     'hint':'Массивный заражённый, обрушивающий укрепления.',
+     'attack_name':'Костяной удар','attack_kind':'smash','attack_damage':7,
+     'mechanic':'Каждый третий удар — сокрушительный.'},
+    {'name':'Матерь заражённых','max_hp':1_500_000,
+     'hint':'Призывает рой и пожирает целые отряды.',
+     'attack_name':'Налёт роя','attack_kind':'swarm','attack_damage':11,
+     'mechanic':'Каждый третий удар выжигает 4 энергии.'},
+    {'name':'Токсичный исполин','max_hp':3_000_000,
+     'hint':'Его тело отравило целый город.',
+     'attack_name':'Ядовитый плевок','attack_kind':'venom','attack_damage':15,
+     'mechanic':'Каждый третий удар забирает 8 энергии и усиливает жажду.'},
+    {'name':'Радиоактивный левиафан','max_hp':6_000_000,
+     'hint':'Тяжёлое заражение и радиационная броня.',
+     'attack_name':'Радиационный импульс','attack_kind':'radiation','attack_damage':19,
+     'mechanic':'Каждый третий удар отнимает энергию, добавляет голод и жажду.'},
+    {'name':'Жнец пустоши','max_hp':10_000_000,
+     'hint':'Вершина пищевой цепи пустоши.',
+     'attack_name':'Казнь','attack_kind':'execute','attack_damage':25,
+     'mechanic':'Сильнее бьёт по раненым; каждый третий удар особенно опасен.'},
 )
 
 
@@ -1243,7 +1258,10 @@ def boss_sync(db):
         b=db.scalar(select(WorldBoss).where(WorldBoss.id==1).with_for_update())
     stamp=now()
     if stamp-aware(b.spawn_at)>timedelta(days=3):
-        _award_boss_cycle(db,b.spawn_at)
+        # Only a defeated boss pays a legendary. Without this gate, one low-
+        # damage hit per cycle can mint top-tier gear indefinitely.
+        if b.hp<=0:
+            _award_boss_cycle(db,b.spawn_at)
         # Continue the five-boss loop while preserving the established
         # single-row schema and earlier boss hit history.
         index=next((i for i,config in enumerate(WORLD_BOSS_ROTATION)
