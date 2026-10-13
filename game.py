@@ -159,6 +159,236 @@ ITEMS = {
     'stone': {'name':'Камень','icon':'🪨','type':'material'},
     'rare': {'name':'Военный жетон','icon':'🏅','type':'material'}
 }
+# Workshop content: 35 new recipes plus 5 originals = 40 usable crafts.
+ITEMS.update({
+  "bat": {
+    "name": "Бита",
+    "icon": "🏏",
+    "type": "weapon",
+    "power": 6,
+    "desc": "Оружие: +6 урона"
+  },
+  "crowbar": {
+    "name": "Лом",
+    "icon": "🔧",
+    "type": "weapon",
+    "power": 11,
+    "desc": "Оружие: +11 урона"
+  },
+  "axe": {
+    "name": "Топор",
+    "icon": "🪓",
+    "type": "weapon",
+    "power": 15,
+    "desc": "Оружие: +15 урона"
+  },
+  "machete": {
+    "name": "Мачете",
+    "icon": "🗡️",
+    "type": "weapon",
+    "power": 18,
+    "desc": "Оружие: +18 урона"
+  },
+  "revolver": {
+    "name": "Револьвер",
+    "icon": "🔫",
+    "type": "weapon",
+    "power": 20,
+    "desc": "Оружие: +20 урона"
+  },
+  "crossbow": {
+    "name": "Арбалет",
+    "icon": "🏹",
+    "type": "weapon",
+    "power": 23,
+    "desc": "Оружие: +23 урона"
+  },
+  "smg": {
+    "name": "Пистолет-пулемёт",
+    "icon": "🔫",
+    "type": "weapon",
+    "power": 26,
+    "desc": "Оружие: +26 урона"
+  },
+  "shotgun": {
+    "name": "Дробовик",
+    "icon": "🔫",
+    "type": "weapon",
+    "power": 29,
+    "desc": "Оружие: +29 урона"
+  },
+  "sniper": {
+    "name": "Снайперская винтовка",
+    "icon": "🎯",
+    "type": "weapon",
+    "power": 40,
+    "desc": "Оружие: +40 урона"
+  },
+  "spear": {
+    "name": "Копьё",
+    "icon": "🔱",
+    "type": "weapon",
+    "power": 13,
+    "desc": "Оружие: +13 урона"
+  },
+  "hunting_bow": {
+    "name": "Охотничий лук",
+    "icon": "🏹",
+    "type": "weapon",
+    "power": 18,
+    "desc": "Оружие: +18 урона"
+  },
+  "chainsaw": {
+    "name": "Бензопила",
+    "icon": "⚙️",
+    "type": "weapon",
+    "power": 36,
+    "desc": "Оружие: +36 урона"
+  },
+  "light_coat": {
+    "name": "Защитный плащ",
+    "icon": "🧥",
+    "type": "armor",
+    "power": 2,
+    "desc": "Броня: +2 защиты"
+  },
+  "padded_armor": {
+    "name": "Усиленная куртка",
+    "icon": "🛡️",
+    "type": "armor",
+    "power": 3,
+    "desc": "Броня: +3 защиты"
+  },
+  "riot_armor": {
+    "name": "Броня спецназа",
+    "icon": "🛡️",
+    "type": "armor",
+    "power": 8,
+    "desc": "Броня: +8 защиты"
+  },
+  "hazmat_armor": {
+    "name": "Костюм химзащиты",
+    "icon": "☣️",
+    "type": "armor",
+    "power": 7,
+    "desc": "Броня: +7 защиты"
+  },
+  "exosuit": {
+    "name": "Экзоскелет",
+    "icon": "🤖",
+    "type": "armor",
+    "power": 14,
+    "desc": "Броня: +14 защиты"
+  },
+  "leather_armor": {
+    "name": "Кожаный жилет",
+    "icon": "🧥",
+    "type": "armor",
+    "power": 5,
+    "desc": "Броня: +5 защиты"
+  },
+  "hardened_vest": {
+    "name": "Укреплённый бронежилет",
+    "icon": "🛡️",
+    "type": "armor",
+    "power": 6,
+    "desc": "Броня: +6 защиты"
+  },
+  "tactical_armor": {
+    "name": "Тактическая броня",
+    "icon": "🛡️",
+    "type": "armor",
+    "power": 10,
+    "desc": "Броня: +10 защиты"
+  },
+  "bandage": {
+    "name": "Бинт",
+    "icon": "🩹",
+    "type": "consumable",
+    "desc": "Восстанавливает 22 HP"
+  },
+  "trauma_kit": {
+    "name": "Военная аптечка",
+    "icon": "🧰",
+    "type": "consumable",
+    "desc": "Восстанавливает 100 HP"
+  },
+  "stimulant": {
+    "name": "Стимулятор",
+    "icon": "💉",
+    "type": "consumable",
+    "desc": "Восстанавливает 45 энергии"
+  },
+  "adrenaline": {
+    "name": "Адреналин",
+    "icon": "⚡",
+    "type": "consumable",
+    "desc": "Восстанавливает 90 энергии и 10 HP"
+  },
+  "ration": {
+    "name": "Полевой паёк",
+    "icon": "🥫",
+    "type": "consumable",
+    "desc": "Снижает голод на 60 и жажду на 35"
+  },
+  "electrolyte": {
+    "name": "Электролит",
+    "icon": "🧃",
+    "type": "consumable",
+    "desc": "Снижает жажду на 55, +15 энергии"
+  },
+  "sealed_ration": {
+    "name": "Запаянный рацион",
+    "icon": "🍲",
+    "type": "consumable",
+    "desc": "Снижает голод на 80"
+  },
+  "water_filter": {
+    "name": "Фильтрованная вода",
+    "icon": "💧",
+    "type": "consumable",
+    "desc": "Снижает жажду на 75"
+  }
+})
+CONSUMABLE_EFFECTS = {
+  "medkit": {
+    "hp": 45
+  },
+  "food": {
+    "hunger": 40
+  },
+  "water": {
+    "thirst": 45
+  },
+  "bandage": {
+    "hp": 22
+  },
+  "trauma_kit": {
+    "hp": 100
+  },
+  "stimulant": {
+    "stamina": 45
+  },
+  "adrenaline": {
+    "stamina": 90,
+    "hp": 10
+  },
+  "ration": {
+    "hunger": 60,
+    "thirst": 35
+  },
+  "electrolyte": {
+    "thirst": 55,
+    "stamina": 15
+  },
+  "sealed_ration": {
+    "hunger": 80
+  },
+  "water_filter": {
+    "thirst": 75
+  }
+}
+
 LOCATIONS = {
     'base': {'name':'Убежище','icon':'⌂','min_level':1,'threat':0,'material':'none','desc':'Место, где безопасно даже после заката'},
     'forest': {'name':'Мёртвый лес','icon':'♣','min_level':1,'threat':1,'material':'wood','desc':'Туман, старые тропы и первые заражённые'},
@@ -176,6 +406,296 @@ RECIPES = {
 }
 SHOP_PRICES = {'medkit':55,'food':25,'water':20,'knife':80,'vest':300,'pistol':420}
 STAMINA_REGEN_PER_TICK = 5  # 5 / 5 min ≈ 60/hour; a usable free-player economy.
+
+RECIPES.update({
+  "bat": {
+    "qty": 1,
+    "cost": {
+      "wood": 5,
+      "cloth": 1
+    }
+  },
+  "crowbar": {
+    "qty": 1,
+    "cost": {
+      "metal": 5,
+      "wood": 2
+    }
+  },
+  "axe": {
+    "qty": 1,
+    "cost": {
+      "metal": 9,
+      "wood": 5
+    }
+  },
+  "machete": {
+    "qty": 1,
+    "cost": {
+      "metal": 10,
+      "cloth": 5
+    }
+  },
+  "revolver": {
+    "qty": 1,
+    "cost": {
+      "metal": 14,
+      "wire": 4,
+      "rubber": 2
+    }
+  },
+  "crossbow": {
+    "qty": 1,
+    "cost": {
+      "wood": 12,
+      "wire": 7,
+      "cloth": 6
+    }
+  },
+  "smg": {
+    "qty": 1,
+    "cost": {
+      "metal": 22,
+      "wire": 14,
+      "rubber": 8
+    }
+  },
+  "shotgun": {
+    "qty": 1,
+    "cost": {
+      "metal": 26,
+      "wood": 8,
+      "wire": 8,
+      "rubber": 4
+    }
+  },
+  "sniper": {
+    "qty": 1,
+    "cost": {
+      "metal": 45,
+      "wire": 22,
+      "rubber": 10,
+      "rare": 3
+    }
+  },
+  "spear": {
+    "qty": 1,
+    "cost": {
+      "wood": 12,
+      "metal": 5
+    }
+  },
+  "hunting_bow": {
+    "qty": 1,
+    "cost": {
+      "wood": 10,
+      "cloth": 6,
+      "wire": 4
+    }
+  },
+  "chainsaw": {
+    "qty": 1,
+    "cost": {
+      "metal": 30,
+      "rubber": 14,
+      "wire": 20,
+      "rare": 2
+    }
+  },
+  "light_coat": {
+    "qty": 1,
+    "cost": {
+      "cloth": 8,
+      "rubber": 2
+    }
+  },
+  "padded_armor": {
+    "qty": 1,
+    "cost": {
+      "cloth": 10,
+      "metal": 5
+    }
+  },
+  "riot_armor": {
+    "qty": 1,
+    "cost": {
+      "metal": 22,
+      "cloth": 16,
+      "rubber": 7
+    }
+  },
+  "hazmat_armor": {
+    "qty": 1,
+    "cost": {
+      "rubber": 18,
+      "cloth": 15,
+      "wire": 8,
+      "rare": 1
+    }
+  },
+  "exosuit": {
+    "qty": 1,
+    "cost": {
+      "metal": 50,
+      "wire": 35,
+      "rubber": 20,
+      "rare": 6
+    }
+  },
+  "leather_armor": {
+    "qty": 1,
+    "cost": {
+      "cloth": 10,
+      "rubber": 8
+    }
+  },
+  "hardened_vest": {
+    "qty": 1,
+    "cost": {
+      "metal": 14,
+      "cloth": 8
+    }
+  },
+  "tactical_armor": {
+    "qty": 1,
+    "cost": {
+      "metal": 32,
+      "cloth": 16,
+      "rubber": 10,
+      "rare": 2
+    }
+  },
+  "bandage": {
+    "qty": 1,
+    "cost": {
+      "cloth": 2
+    }
+  },
+  "trauma_kit": {
+    "qty": 1,
+    "cost": {
+      "cloth": 6,
+      "rubber": 2,
+      "rare": 1
+    }
+  },
+  "stimulant": {
+    "qty": 1,
+    "cost": {
+      "food": 1,
+      "water": 1,
+      "wire": 1
+    }
+  },
+  "adrenaline": {
+    "qty": 1,
+    "cost": {
+      "medkit": 1,
+      "food": 1,
+      "rubber": 1,
+      "rare": 1
+    }
+  },
+  "ration": {
+    "qty": 1,
+    "cost": {
+      "food": 2,
+      "water": 1,
+      "cloth": 1
+    }
+  },
+  "electrolyte": {
+    "qty": 1,
+    "cost": {
+      "water": 1,
+      "food": 1,
+      "metal": 1
+    }
+  },
+  "sealed_ration": {
+    "qty": 1,
+    "cost": {
+      "food": 3,
+      "cloth": 2,
+      "wood": 1
+    }
+  },
+  "water_filter": {
+    "qty": 1,
+    "cost": {
+      "water": 1,
+      "cloth": 1,
+      "metal": 1
+    }
+  },
+  "bandage_bundle": {
+    "name": "Набор бинтов",
+    "output": "bandage",
+    "qty": 4,
+    "cost": {
+      "cloth": 7
+    }
+  },
+  "medkit_bundle": {
+    "name": "Медицинская коробка",
+    "output": "medkit",
+    "qty": 3,
+    "cost": {
+      "cloth": 5,
+      "wood": 3
+    }
+  },
+  "ration_bundle": {
+    "name": "Паёк для отряда",
+    "output": "ration",
+    "qty": 3,
+    "cost": {
+      "food": 5,
+      "water": 3,
+      "cloth": 3
+    }
+  },
+  "stimulant_bundle": {
+    "name": "Стимуляторы для отряда",
+    "output": "stimulant",
+    "qty": 3,
+    "cost": {
+      "food": 3,
+      "water": 3,
+      "wire": 2
+    }
+  },
+  "electrolyte_bundle": {
+    "name": "Электролиты для отряда",
+    "output": "electrolyte",
+    "qty": 3,
+    "cost": {
+      "water": 3,
+      "food": 3,
+      "metal": 2
+    }
+  },
+  "water_filter_bundle": {
+    "name": "Фильтры для отряда",
+    "output": "water_filter",
+    "qty": 3,
+    "cost": {
+      "water": 3,
+      "cloth": 2,
+      "metal": 3
+    }
+  },
+  "sealed_ration_bundle": {
+    "name": "Склад сухпайков",
+    "output": "sealed_ration",
+    "qty": 3,
+    "cost": {
+      "food": 8,
+      "cloth": 6,
+      "wood": 3
+    }
+  }
+})
 
 QUESTS = {
     'kills':{'name':'Чистка периметра','description':'Победить 5 заражённых','target':5,'reward':{'caps':120,'xp':180}},
@@ -241,6 +761,16 @@ def aware(dt):
 def max_hp(p): return CLASSES.get(p.hero_class,{}).get('hp',100) + p.stats.get('endurance',0)*5 + (p.level-1)*3 + int(talent_bonus(p,'health'))
 
 def xp_needed(level): return int(150*level**1.75+300*level)
+
+def scavenge_pool(location):
+    """Provide rubber, wire and stone in high-threat areas for advanced crafts."""
+    loc=LOCATIONS[location]
+    pool=[loc['material']]*2+['cloth','food','water','wood','metal']
+    if loc['threat']>=3:pool+=['wire','rubber']
+    if loc['threat']>=4:pool+=['wire','rubber','stone']
+    if loc['threat']>=5:pool+=['rare']
+    return pool
+
 
 def spend_stamina(p, cost):
     tick(p)
