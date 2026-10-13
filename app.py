@@ -129,7 +129,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.27.0'
+APP_VERSION='0.28.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -744,7 +744,9 @@ def pvp_view(db,m):
     if not m:return None
     names={p.id:p.name for p in db.scalars(select(Player).where(Player.id.in_([m.challenger_id,m.defender_id])))}
     return {'id':m.id,'state':m.state,'challenger':{'id':m.challenger_id,'name':names.get(m.challenger_id,'Игрок'),'hp':m.hp_a},
-            'defender':{'id':m.defender_id,'name':names.get(m.defender_id,'Игрок'),'hp':m.hp_b},'current_id':m.current_id,'log':m.log[-8:], 'updated_at':aware(m.updated_at).isoformat()}
+            'defender':{'id':m.defender_id,'name':names.get(m.defender_id,'Игрок'),'hp':m.hp_b},
+            'current_id':m.current_id,'log':[x for x in (m.log or []) if not x.startswith('!pvp:')][-8:],
+            'turn_seconds':90,'updated_at':aware(m.updated_at).isoformat()}
 
 class PlayerId(BaseModel):player_id:int=Field(gt=0,le=9223372036854775807)
 
@@ -788,32 +790,80 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
             return {'message':'Дуэль началась! Первый ход за инициатором'}
         if m.state!='active':raise ValueError('Дуэль завершена')
         if body.action=='claim_timeout':
-            if m.current_id==p.id or now()-aware(m.updated_at)<=timedelta(minutes=5):
+            if m.current_id==p.id or now()-aware(m.updated_at)<=timedelta(seconds=90):
                 raise ValueError('Время хода соперника ещё не вышло')
             winner_id=p.id
         elif body.action=='surrender':
             winner_id=m.defender_id if p.id==m.challenger_id else m.challenger_id
         else:
             if m.current_id!=p.id:raise ValueError('Сейчас ход соперника')
-            if body.action not in ('attack','defend'):raise ValueError('Выбери атаку или защиту')
-            if now()-aware(m.updated_at)>timedelta(minutes=5):
+            permitted=('attack','crit','defend','heal','steal','feint','peace')
+            if body.action not in permitted:raise ValueError('Неизвестная тактика PvP')
+            if now()-aware(m.updated_at)>timedelta(seconds=90):
                 winner_id=m.defender_id if p.id==m.challenger_id else m.challenger_id
             else:
                 target=db.get(Player,m.defender_id if p.id==m.challenger_id else m.challenger_id)
-                damage=max(1,int(attack_power(db,p)*random.uniform(.55,1.0))) if body.action=='attack' else 0
-                if damage:
-                    armor=gear_stats(db,target.id)['defense']
-                    damage=max(1,damage-min(armor,int(damage*.65)))
-                    # A defensive stance protects against the immediately following hit.
-                    if m.log and m.log[-1]==f'{target.name}: защита — 0 урона':
-                        damage=max(1,int(damage*.65))
-                if p.id==m.challenger_id:
-                    m.hp_b=max(0,m.hp_b-damage);dead=m.hp_b==0
+                state=list(m.log or [])
+                mine='!pvp:steal:'+str(p.id)
+                peace='!pvp:peace:'+str(target.id)
+                persistent=[entry for entry in state if entry.startswith('!pvp:steal:')]
+                latest=[entry for entry in state if not entry.startswith('!pvp:')]
+                if body.action=='peace' and peace in state:
+                    m.state='finished';m.current_id=None;m.updated_at=now()
+                    m.log=persistent+latest[-10:]+[f'{p.name} и {target.name} заключили перемирие. Ничья!']
+                    return {'message':'Дуэль завершена миром. Рейтинг и награды не изменены.'}
+                if body.action=='peace':
+                    persistent.append('!pvp:peace:'+str(p.id))
+                    message=f'{p.name} предлагает мир. Соперник может согласиться.'
+                    damage=0
+                elif body.action=='steal':
+                    if mine in state:raise ValueError('Кража доступна один раз за дуэль')
+                    amount=min(max(0,target.caps),random.randint(7,20) if p.hero_class=='thief' else random.randint(4,12))
+                    target.caps-=amount;p.caps+=amount
+                    persistent.append(mine)
+                    damage=0
+                    message=f'{p.name}: кража — {amount} крышек'
+                elif body.action=='heal':
+                    # PvP HP lives on the match, but treatment uses a real
+                    # medkit from the player's stack inventory.
+                    take_item(db,p.id,'medkit')
+                    restored=int(45*CLASSES[p.hero_class]['healing']*(1+talent_bonus(p,'healing')))
+                    if p.id==m.challenger_id:m.hp_a=min(max_hp(p),m.hp_a+restored)
+                    else:m.hp_b=min(max_hp(p),m.hp_b+restored)
+                    damage=0
+                    message=f'{p.name}: лечение +{restored} HP (потрачена аптечка)'
                 else:
-                    m.hp_a=max(0,m.hp_a-damage);dead=m.hp_a==0
-                m.log=[*(m.log or [])[-12:],f'{p.name}: {"атака" if damage else "защита"} — {damage} урона']
+                    damage=0
+                    if body.action!='defend':
+                        strength={'attack':1.0,'crit':1.75,'feint':.7}[body.action]
+                        # Critical strike is stronger but may miss; a feint
+                        # ignores the opponent's armor/defense at reduced power.
+                        hit=body.action!='crit' or random.random()<.60+min(.25,talent_bonus(p,'crit'))
+                        if hit:
+                            damage=max(1,int(attack_power(db,p)*random.uniform(.55,1.0)*strength))
+                            if body.action!='feint':
+                                armor=gear_stats(db,target.id)['defense']
+                                damage=max(1,damage-min(armor,int(damage*.65)))
+                                if latest and latest[-1]==f'{target.name}: защита — 0 урона':
+                                    damage=max(1,int(damage*.65))
+                            dodge=min(.60,CLASSES[target.hero_class].get('dodge',0)
+                                           +target.stats.get('agility',0)*.005
+                                           +talent_bonus(target,'dodge'))
+                            if random.random()<dodge:damage=0
+                            if damage:
+                                damage=max(1,int(damage*(1-min(.65,CLASSES[target.hero_class].get('mitigation',0)
+                                                         +talent_bonus(target,'mitigation')))))
+                    message=f'{p.name}: '+({'attack':'атака','crit':'критическая атака',
+                        'feint':'финт','defend':'защита'}[body.action])+f' — {damage} урона'
+                if damage:
+                    if p.id==m.challenger_id:
+                        m.hp_b=max(0,m.hp_b-damage);dead=m.hp_b==0
+                    else:
+                        m.hp_a=max(0,m.hp_a-damage);dead=m.hp_a==0
+                else:dead=False
+                m.log=persistent+latest[-10:]+[message]
                 m.current_id=target.id;m.updated_at=now()
-                if not dead:return {'message':f'Ход выполнен: {damage} урона'}
+                if not dead:return {'message':message}
                 winner_id=p.id
         winner=db.get(Player,winner_id);loser=db.get(Player,m.challenger_id if winner_id==m.defender_id else m.defender_id)
         winner.rating+=25;loser.rating=max(0,loser.rating-20);winner.pvp_wins+=1
