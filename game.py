@@ -857,14 +857,44 @@ def spend_stamina(p, cost):
     p.stamina -= actual
 
 def tick(p):
+    """Regenerate energy every full 5 min and HP every full hour.
+
+    Both clocks keep leftover seconds, including through frequent requests.
+    Health uses a separate persisted JSON timestamp so its hourly progress is
+    not reset by the five-minute stamina clock. VIP is credited only for
+    five-minute intervals actually completed before its expiry.
+    """
     current=now()
-    elapsed=max(0,(current-aware(p.last_tick or current)).total_seconds())
-    regen=int(elapsed//300)*STAMINA_REGEN_PER_TICK*(2 if p.vip_until and aware(p.vip_until)>current else 1)
-    regen=int(regen*(1+talent_bonus(p,'energy')))
-    if regen>0:
-        p.stamina=min(500,p.stamina+regen)
-        p.hp=min(max_hp(p),p.hp+int(elapsed//3600)*(1+p.stats.get('regen',0)+int(talent_bonus(p,'regen'))))
-        p.last_tick=current
+    last_energy=aware(p.last_tick or current)
+    elapsed=max(0,(current-last_energy).total_seconds())
+    stamina_ticks=int(elapsed//300)
+    if stamina_ticks:
+        vip_ticks=0
+        if p.vip_until:
+            until=aware(p.vip_until)
+            vip_ticks=min(stamina_ticks,max(0,int((until-last_energy).total_seconds()//300)))
+        units=STAMINA_REGEN_PER_TICK*(stamina_ticks+vip_ticks)
+        recovered=max(0,int(units*(1+talent_bonus(p,'energy'))))
+        p.stamina=min(500,p.stamina+recovered)
+        p.last_tick=last_energy+timedelta(minutes=5*stamina_ticks)
+    # Initialize the HP clock *once*, before a subsequent stamina tick could
+    # move last_tick. This also upgrades existing characters in place.
+    values=dict(p.stats or {})
+    try:
+        hp_clock=aware(datetime.fromisoformat(values['_hp_regen_at']))
+    except (ValueError,KeyError,TypeError):
+        hp_clock=last_energy
+    hours=int(max(0,(current-hp_clock).total_seconds())//3600)
+    if hours:
+        per_hour=max(0,1+int(values.get('regen',0))+int(talent_bonus(p,'regen')))
+        p.hp=min(max_hp(p),p.hp+hours*per_hour)
+        hp_clock+=timedelta(hours=hours)
+    # Preserve the marker even if no full hour has elapsed. Otherwise repeated
+    # 5-minute polls would keep restarting the first hour.
+    stamp=hp_clock.isoformat()
+    if values.get('_hp_regen_at')!=stamp:
+        values['_hp_regen_at']=stamp
+        p.stats=values
 
 def insurance_active(p, *, at=None):
     """Whether purchased one-day protection still covers this character."""
