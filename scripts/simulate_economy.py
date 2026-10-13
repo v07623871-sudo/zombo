@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from game import CLASSES, ENEMIES, LOCATIONS, RECIPES, QUESTS, choose_enemy, choose_elite_modifier, xp_needed, SHOP_PRICES, STAMINA_REGEN_PER_TICK
+from game import CLASSES, ENEMIES, LOCATIONS, RECIPES, QUESTS, choose_enemy, choose_elite_modifier, xp_needed, SHOP_PRICES, STAMINA_REGEN_PER_TICK, scavenge_pool
 
 DAYS_MAX=90
 RUNS_MAX=2000
@@ -36,10 +36,11 @@ def scavenge(state,rng,zone):
     if state['stamina']<5:return False
     state['stamina']-=5
     state['scavenges']+=1
-    choices=[LOCATIONS[zone]['material']]*2+['cloth','food','water','wood','metal']
+    choices=scavenge_pool(zone)
     material=rng.choice(choices)
     qty=rng.randint(1,3)
-    state['materials'][material]+=qty
+    if material=='medkit':state['medkits']+=qty
+    else:state['materials'][material]+=qty
     state['loot_items']+=qty
     state['hunger']+=2
     state['thirst']+=3

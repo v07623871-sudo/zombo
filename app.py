@@ -18,7 +18,7 @@ from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, 
                     MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, StarInvoice, PaymentReview, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
 from game import (ENEMIES, CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
                   aware, max_hp, gain_xp, give_item, take_item, item_count, tick, spend_stamina,
-                  player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync, SHOP_PRICES)
+                  player_view, battle_view, combat_round, spawn_battle, attack_power, progress, boss_sync, SHOP_PRICES, CONSUMABLE_EFFECTS, scavenge_pool)
 
 from clan_wars import (WAR_TIMEZONE, LOCATION_TERRITORY, MIN_BID, phase, next_war_date, war_date_for_bid,
     can_command, bid as place_bid, appoint as appoint_warlord, roster as set_roster, war_action,
@@ -129,7 +129,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.24.0'
+APP_VERSION='0.25.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -347,7 +347,7 @@ def scavenge(request:Request,db:Session=Depends(db_session)):
         if db.scalar(select(Battle).where(Battle.player_id==p.id)):raise ValueError('В бою нельзя искать припасы')
         spend_stamina(p,5)
         loc=LOCATIONS[p.location]
-        key=random.choice([loc['material'],loc['material'],'cloth','food','water','wood','metal'])
+        key=random.choice(scavenge_pool(p.location))
         qty=random.randint(1,3)
         qty+=min(3,int(talent_bonus(p,'scavenge')*4))
         world_supply=record_world_action(db,p,'supplies')
@@ -394,12 +394,15 @@ class ItemAction(BaseModel):
 def use_item(body:ItemAction,request:Request,db:Session=Depends(db_session)):
     with db.begin():
         p=with_player(request,db);ready(p)
-        if body.key not in ['food','water','medkit']:raise ValueError('Нельзя использовать предмет')
+        effect=CONSUMABLE_EFFECTS.get(body.key)
+        if not effect:raise ValueError('Нельзя использовать предмет')
         if body.qty!=1:raise ValueError('Используй по одному')
         take_item(db,p.id,body.key)
-        if body.key=='medkit':p.hp=min(max_hp(p),p.hp+int(45*CLASSES[p.hero_class]['healing']*(1+talent_bonus(p,'healing'))))
-        if body.key=='food':p.hunger=max(0,p.hunger-40)
-        if body.key=='water':p.thirst=max(0,p.thirst-45)
+        if 'hp' in effect:
+            p.hp=min(max_hp(p),p.hp+int(effect['hp']*CLASSES[p.hero_class]['healing']*(1+talent_bonus(p,'healing'))))
+        if 'stamina' in effect:p.stamina=min(500,p.stamina+effect['stamina'])
+        if 'hunger' in effect:p.hunger=max(0,p.hunger-effect['hunger'])
+        if 'thirst' in effect:p.thirst=max(0,p.thirst-effect['thirst'])
         return {'message':f'Использовано: {ITEMS[body.key]["name"]}'}
 
 @app.post('/api/item/equip')
@@ -432,10 +435,12 @@ def craft(body:Choice,request:Request,db:Session=Depends(db_session)):
         for k,q in recipe['cost'].items():
             if item_count(db,p.id,k)<q:raise ValueError('Не хватает: '+ITEMS[k]['name'])
         for k,q in recipe['cost'].items():take_item(db,p.id,k,q)
-        if body.key in BASE_GEAR:
-            for _ in range(recipe['qty']):create_gear(db,p.id,body.key,'common','craft')
-        else:give_item(db,p.id,body.key,recipe['qty'])
-        return {'message':'Создано: '+ITEMS[body.key]['name']}
+        output=recipe.get('output',body.key)
+        if output not in ITEMS:raise ValueError('Неизвестный результат рецепта')
+        if output in BASE_GEAR:
+            for _ in range(recipe['qty']):create_gear(db,p.id,output,'common','craft')
+        else:give_item(db,p.id,output,recipe['qty'])
+        return {'message':f'Создано: {ITEMS[output]["name"]} ×{recipe["qty"]}'}
 
 @app.post('/api/daily')
 def daily(request:Request,db:Session=Depends(db_session)):

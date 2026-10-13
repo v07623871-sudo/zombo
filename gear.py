@@ -27,6 +27,168 @@ BASE_GEAR = {
     'rifle': {'name': 'Автомат АК-47', 'icon': '🔫', 'slot': 'weapon', 'power': 25, 'defense': 0, 'material': 'metal'},
     'vest': {'name': 'Бронежилет пустоши', 'icon': '🛡', 'slot': 'armor', 'power': 0, 'defense': 4, 'material': 'cloth'},
 }
+BASE_GEAR.update({
+  "bat": {
+    "name": "Бита",
+    "icon": "🏏",
+    "slot": "weapon",
+    "power": 6,
+    "defense": 0,
+    "material": "wood"
+  },
+  "crowbar": {
+    "name": "Лом",
+    "icon": "🔧",
+    "slot": "weapon",
+    "power": 11,
+    "defense": 0,
+    "material": "metal"
+  },
+  "axe": {
+    "name": "Топор",
+    "icon": "🪓",
+    "slot": "weapon",
+    "power": 15,
+    "defense": 0,
+    "material": "metal"
+  },
+  "machete": {
+    "name": "Мачете",
+    "icon": "🗡️",
+    "slot": "weapon",
+    "power": 18,
+    "defense": 0,
+    "material": "metal"
+  },
+  "revolver": {
+    "name": "Револьвер",
+    "icon": "🔫",
+    "slot": "weapon",
+    "power": 20,
+    "defense": 0,
+    "material": "metal"
+  },
+  "crossbow": {
+    "name": "Арбалет",
+    "icon": "🏹",
+    "slot": "weapon",
+    "power": 23,
+    "defense": 0,
+    "material": "wood"
+  },
+  "smg": {
+    "name": "Пистолет-пулемёт",
+    "icon": "🔫",
+    "slot": "weapon",
+    "power": 26,
+    "defense": 0,
+    "material": "metal"
+  },
+  "shotgun": {
+    "name": "Дробовик",
+    "icon": "🔫",
+    "slot": "weapon",
+    "power": 29,
+    "defense": 0,
+    "material": "metal"
+  },
+  "sniper": {
+    "name": "Снайперская винтовка",
+    "icon": "🎯",
+    "slot": "weapon",
+    "power": 40,
+    "defense": 0,
+    "material": "metal"
+  },
+  "spear": {
+    "name": "Копьё",
+    "icon": "🔱",
+    "slot": "weapon",
+    "power": 13,
+    "defense": 0,
+    "material": "wood"
+  },
+  "hunting_bow": {
+    "name": "Охотничий лук",
+    "icon": "🏹",
+    "slot": "weapon",
+    "power": 18,
+    "defense": 0,
+    "material": "wood"
+  },
+  "chainsaw": {
+    "name": "Бензопила",
+    "icon": "⚙️",
+    "slot": "weapon",
+    "power": 36,
+    "defense": 0,
+    "material": "metal"
+  },
+  "light_coat": {
+    "name": "Защитный плащ",
+    "icon": "🧥",
+    "slot": "armor",
+    "power": 0,
+    "defense": 2,
+    "material": "cloth"
+  },
+  "padded_armor": {
+    "name": "Усиленная куртка",
+    "icon": "🛡️",
+    "slot": "armor",
+    "power": 0,
+    "defense": 3,
+    "material": "cloth"
+  },
+  "riot_armor": {
+    "name": "Броня спецназа",
+    "icon": "🛡️",
+    "slot": "armor",
+    "power": 0,
+    "defense": 8,
+    "material": "metal"
+  },
+  "hazmat_armor": {
+    "name": "Костюм химзащиты",
+    "icon": "☣️",
+    "slot": "armor",
+    "power": 0,
+    "defense": 7,
+    "material": "rubber"
+  },
+  "exosuit": {
+    "name": "Экзоскелет",
+    "icon": "🤖",
+    "slot": "armor",
+    "power": 0,
+    "defense": 14,
+    "material": "metal"
+  },
+  "leather_armor": {
+    "name": "Кожаный жилет",
+    "icon": "🧥",
+    "slot": "armor",
+    "power": 0,
+    "defense": 5,
+    "material": "cloth"
+  },
+  "hardened_vest": {
+    "name": "Укреплённый бронежилет",
+    "icon": "🛡️",
+    "slot": "armor",
+    "power": 0,
+    "defense": 6,
+    "material": "metal"
+  },
+  "tactical_armor": {
+    "name": "Тактическая броня",
+    "icon": "🛡️",
+    "slot": "armor",
+    "power": 0,
+    "defense": 10,
+    "material": "metal"
+  }
+})
 MAX_GEAR=80
 MAX_UPGRADE=10
 
