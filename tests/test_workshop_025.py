@@ -64,6 +64,7 @@ def test_bundle_is_not_free_and_produces_correct_stacked_amount():
         client.post('/api/class',headers=auth(pid),json={'key':'medic'})
         with SessionLocal.begin() as db:
             give_item(db,pid,'cloth',7)
+            db.flush()
             initial_bandages=item_count(db,pid,'bandage')
             initial_cloth=item_count(db,pid,'cloth')
         result=client.post('/api/craft',headers=auth(pid),json={'key':'bandage_bundle'})
