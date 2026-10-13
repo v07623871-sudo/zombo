@@ -129,7 +129,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.28.0'
+APP_VERSION='0.29.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -498,28 +498,57 @@ def world_boss(db:Session=Depends(db_session)):
         ids=[x[0] for x in hits];names={x.id:x.name for x in db.scalars(select(Player).where(Player.id.in_(ids)))}
         boss_info=next((config for config in WORLD_BOSS_ROTATION if config['name']==b.name),
                        WORLD_BOSS_ROTATION[0])
+        from boss_combat import combat_phase
         return {'name':b.name,'hp':b.hp,'max_hp':b.max_hp,
-            'hint':boss_info['hint'],'cycle_bosses':len(WORLD_BOSS_ROTATION),
-            'top_prize':'Легендарная винтовка для лидера урона по окончании цикла',
+            'hint':boss_info['hint'],'mechanic':boss_info['mechanic'],
+            'attack_name':boss_info['attack_name'],'phase':combat_phase(b),
+            'cycle_bosses':len(WORLD_BOSS_ROTATION),
+            'top_prize':'Легендарная винтовка лидеру урона, только если босс побеждён',
             'spawn_at':str(int(aware(b.spawn_at).timestamp())),
             'ends_at':(aware(b.spawn_at)+timedelta(days=3)).isoformat(),
             'top':[{'name':names.get(pid,'Выживший'),'damage':dmg} for pid,dmg in hits]}
 
 @app.post('/api/boss/hit')
 def boss_hit(request:Request,db:Session=Depends(db_session)):
+    from boss_combat import boss_counterattack, next_turn
     with db.begin():
-        p=with_player(request,db);ready(p);spend_stamina(p,5)
+        # Same lock order as boss_sync() on a GET that settles an expired
+        # cycle (boss row -> Player). Prevent boss/Player deadlocks.
+        identify(request.headers.get('authorization',''))
         b=boss_sync(db)
+        p=with_player(request,db);ready(p)
+        if db.scalar(select(Battle.id).where(Battle.player_id==p.id)):
+            raise ValueError('Сначала закончи бой с заражённым')
+        if pending_encounter(db,p.id):
+            raise ValueError('Сначала заверши случайную встречу')
         if b.hp<=0:raise ValueError('Босс уже повержен. Жди нового цикла')
-        entry=db.scalar(select(BossHit).where(BossHit.player_id==p.id,BossHit.spawn_at==str(int(aware(b.spawn_at).timestamp()))).with_for_update())
-        if entry and (now()-aware(entry.last_hit)).total_seconds()<30:raise ValueError('Повторная атака через 30 секунд')
+        cycle=str(int(aware(b.spawn_at).timestamp()))
+        entry=db.scalar(select(BossHit).where(
+            BossHit.player_id==p.id,BossHit.spawn_at==cycle).with_for_update())
+        if entry and (now()-aware(entry.last_hit)).total_seconds()<30:
+            raise ValueError('Повторная атака через 30 секунд')
+        spend_stamina(p,5)
         damage=max(1,int(attack_power(db,p)*random.randint(3,5)*(1+talent_bonus(p,'boss'))))
         damage=min(damage,b.hp)
         b.hp-=damage
         if entry:entry.damage+=damage;entry.last_hit=now()
-        else:db.add(BossHit(player_id=p.id,spawn_at=str(int(aware(b.spawn_at).timestamp())),damage=damage))
-        gain_xp(p,50);progress(db,p.id,'boss')
-        return {'message':f'Колосс получил {damage} урона! +50 XP','damage':damage,'hp':b.hp}
+        else:db.add(BossHit(player_id=p.id,spawn_at=cycle,damage=damage))
+        turn=next_turn(p,cycle)
+        if b.hp==0:
+            # Killing blow finishes the encounter before the counterattack.
+            result={'message':f'{b.name} повержен!','damage_received':0,
+                    'stamina_drained':0,'special':False,'phase':'Победа',
+                    'defeated':False,'losses':None,'dodged':False}
+        else:
+            result=boss_counterattack(db,p,b,turn)
+        if not result['defeated']:
+            gain_xp(p,50)
+            progress(db,p.id,'boss')
+        return {**result,
+            'message':f'Ты наносишь {damage} урона. '+result['message']
+                       +(' +50 XP.' if not result['defeated'] else ''),
+            'damage':damage,'hp':b.hp,'player_hp':p.hp,
+            'player_stamina':p.stamina,'boss_defeated':b.hp==0,'turn':turn}
 
 class ClanCreate(BaseModel):
     name:str=Field(min_length=3,max_length=30)
