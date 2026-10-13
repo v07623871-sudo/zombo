@@ -119,7 +119,7 @@ def test_no_legendary_for_failed_boss_even_with_a_leader():
                 db.add(b)
             b.name='Гниющий колосс'
             b.hp=1000;b.max_hp=500000
-            b.spawn_at=now()-timedelta(days=4)
+            b.spawn_at=now()-timedelta(days=7,seconds=17)
             db.flush()
             db.add(BossHit(player_id=pid,
                 spawn_at=str(int(b.spawn_at.timestamp())),damage=499000))
