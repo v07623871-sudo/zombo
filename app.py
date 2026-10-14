@@ -754,6 +754,8 @@ def market_create(body:LotRequest,request:Request,db:Session=Depends(db_session)
     with db.begin():
         p=with_player(request,db);ready(p)
         if body.offer not in ITEMS or body.want not in ITEMS or body.offer==body.want:raise ValueError('Некорректные предметы')
+        if ITEMS[body.offer]['type'] in ('case','chest') or ITEMS[body.want]['type'] in ('case','chest'):
+            raise ValueError('Премиум-кейсы и сундуки нельзя обменивать на бартерном рынке')
         if db.scalar(select(func.count()).select_from(MarketLot).where(MarketLot.seller_id==p.id,MarketLot.active==True))>=5:raise ValueError('Максимум 5 активных лотов')
         take_item(db,p.id,body.offer,body.qty)
         lot=MarketLot(seller_id=p.id,offered_key=body.offer,offered_qty=body.qty,wanted_key=body.want,wanted_qty=body.want_qty)
@@ -774,6 +776,8 @@ def market_buy(body:IdBody,request:Request,db:Session=Depends(db_session)):
         lot=db.scalar(select(MarketLot).where(MarketLot.id==body.id).with_for_update())
         if not lot or not lot.active:raise ValueError('Лот недоступен')
         if lot.seller_id==p.id:raise ValueError('Нельзя покупать свой лот')
+        if ITEMS[lot.offered_key]['type'] in ('case','chest') or ITEMS[lot.wanted_key]['type'] in ('case','chest'):
+            raise ValueError('Этот премиум-лот больше недоступен. Продавец может отменить его.')
         take_item(db,p.id,lot.wanted_key,lot.wanted_qty)
         give_item(db,lot.seller_id,lot.wanted_key,lot.wanted_qty)
         give_item(db,p.id,lot.offered_key,lot.offered_qty)
