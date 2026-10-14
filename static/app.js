@@ -49,7 +49,7 @@ function art(klass='soldier',zombie=false){
 }
 function uiIcon(name){return icon(name)}
 function icon(name){const paths={book:'<path d="M12 6C9 4 6 4 3 5v15c4-2 7-1 9 1 2-2 5-3 9-1V5c-3-1-6-1-9 1zM12 6v15"/>',bag:'<path d="M5 9h14l1 12H4L5 9zm4 0V6a3 3 0 0 1 6 0v3"/>',hammer:'<path d="m4 20 12-12M12 4l4-2 6 6-2 4zM2 9l5-5"/>',shop:'<path d="M3 10h18v11H3zM2 10l3-7h14l3 7M9 21v-7h6v7"/>',exchange:'<path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4"/>',check:'<path d="m3 12 6 6L21 6"/>',leader:'<path d="M4 7h16v4c0 5-3 7-8 7s-8-2-8-7V7zm8 11v3M7 21h10M4 9H2c0 4 1 6 4 6m14-6h2c0 4-1 6-4 6"/>',home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',map:'<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.5 5-4.5 2 2-4.5z"/>',hero:'<circle cx="12" cy="7" r="4"/><path d="M4 21v-2c0-4 3-6 8-6s8 2 8 6v2"/>',clan:'<circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M2 20v-2c0-4 2-6 6-6s7 2 7 6v2H2Zm14 0h6v-3q0-3-4-4"/>',menu:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',coins:'<circle cx="12" cy="12" r="9"/><path d="M15 8.5H10a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H9m3-11v13"/>',gem:'<path d="m2 9 4-5h12l4 5-10 12zM2 9h20M6 4l6 17L18 4"/>',skull:'<path d="M6 17V9a6 6 0 0 1 12 0v8l-2 2v2h-8v-2z"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><path d="M11 16h2"/>',shield:'<path d="m12 2 8 4v6c0 5-4 9-8 10-4-1-8-5-8-10V6z"/>',swords:'<path d="M4 20 17 7l1-4 3 3-4 1L4 20zm0-4 4 4m12 0L7 7 6 3 3 6l4 1 13 13zm0-4-4 4"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/>'};return `<svg class="ui-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.menu}</svg>`}
-function header(){return `<header class="top"><div class="brand">ZOMBO<span>AFTER THE FALL · 0.38.0</span></div><div class="currencies"><div class="currency">${icon('coins')} <b>${money(me?.caps)}</b></div><div class="currency gem">${icon('gem')} <b>${money(me?.zombo)}</b></div></div></header>`}
+function header(){return `<header class="top"><div class="brand">ZOMBO<span>AFTER THE FALL · 0.39.0</span></div><div class="currencies"><div class="currency">${icon('coins')} <b>${money(me?.caps)}</b></div><div class="currency gem">${icon('gem')} <b>${money(me?.zombo)}</b></div></div></header>`}
 
 function navBar(){let tabs=[['home','home','База'],['map','map','Карта'],['profile','hero','Герой'],['clan','clan','Клан'],['more','menu','Меню']];return `<nav class="bottom-nav">${tabs.map(([id,ico,label])=>`<button data-action="nav" data-value="${id}" class="${(screen===id||(screen==='talents'&&id==='profile')||(['pvp','boss','market','leaders','quests','shop','cases','stars','pets','bestiary','raids','expeditions','gear','story','gear-market','admin','world-events','notifications','encounters'].includes(screen)&&id==='more'))?'active':''}"><span class="nav-ico">${icon(ico)}</span>${label}</button>`).join('')}</nav>`}
 function miniStats(){return `<div class="panel"><div class="flex-between"><div><span class="tag">Здоровье · энергия · опыт</span><h3 style="margin:6px 0;font:600 18px Oswald">${esc(me.name)} <span style="color:var(--gold)">LVL ${me.level}</span></h3></div>${btn('Профиль ↗','nav','ghost','profile')}</div><div class="bar-label"><span>♥ Здоровье</span><em>${me.hp} / ${me.max_hp}</em></div>${bar(me.hp,me.max_hp,'red')}<div class="bar-label"><span>ϟ Энергия</span><em>${me.stamina} / 500</em></div>${bar(me.stamina,500,'blue')}<div class="bar-label"><span>✧ Опыт</span><em>${money(me.xp)} / ${money(me.xp_next)}</em></div>${bar(me.xp,me.xp_next)}</div>`}
@@ -135,9 +135,30 @@ function gearScreen(){
  ${section('КОЛЛЕКЦИЯ',`${gear.length} ПРЕДМЕТОВ`)}<div class="panel item-filters">${searchBox('gear',gearQuery,'ПОИСК В АРСЕНАЛЕ')}${filterTabs('gear-filter',gearSlotFilter,[['all','Всё'],['weapon','Оружие'],['armor','Броня']])}<label class="search-label" for="gear-sort">СОРТИРОВКА</label><select id="gear-sort"><option value="equipped" ${gearSort==='equipped'?'selected':''}>Сначала надетое</option><option value="rarity" ${gearSort==='rarity'?'selected':''}>По редкости</option><option value="power" ${gearSort==='power'?'selected':''}>По силе</option><option value="worn" ${gearSort==='worn'?'selected':''}>По износу</option></select></div>${gear.length?`<div class="gear-collection">${visible.map(box).join('')}${!visible.length?'<div class="empty">В категории пока нет вещей.</div>':''}</div><div class="empty search-empty" data-filter-empty="gear" hidden>Ничего не найдено.</div>`:`<div class="panel gear-empty"><h3>Пока пусто</h3><p>Ищи снаряжение в боях с заражёнными, проходи групповые рейды или создавай его в мастерской.</p>${btn('НА КАРТУ','nav','gold','map')}${btn('К МАСТЕРСКОЙ','nav','ghost','craft')}</div>`}
  <div class="panel gear-help"><h3>Как работает снаряжение?</h3><p><b>Обычное → Необычное → Редкое → Эпическое → Легендарное.</b> Больше редкость — сильнее базовые характеристики. Улучшение до +10 расходует крышки и материалы, на уровнях +5, +8 и +10 нужны военные жетоны. Экипировка изнашивается при атаках и ударах врага. При прочности меньше 40 снижаются параметры, при 0 бонус равен нулю. Ремонт за крышки и материалы восстанавливает 100%. Особые пушки доступны только из кейсов. Ненужную вещь можно разобрать, но экипированные предметы разбирать нельзя. Старое снаряжение остаётся доступным в рюкзаке.</p></div>`;
 }
+// One backpack presentation for both ItemStack consumables and unique GearItem.
+// Gear remains stored in its own table to keep unique IDs, levels and durability.
+function ownedInventory(){
+ const stacks=(me.inventory||[]).map(item=>({...item,isUniqueGear:false}));
+ const unique=(me.gear||[]).map(g=>({
+   ...g,type:g.slot,qty:1,isUniqueGear:true,
+   desc:`${g.rarity_name} · +${g.level} · ${g.slot==='weapon'?'Урон: '+g.power:'Броня: '+g.defense} · Прочность ${g.durability}/100`
+ }));
+ return [...unique,...stacks];
+}
 function inventory(filtered=false){
- const items=(me.inventory||[]).filter(item=>!filtered||inventoryFilter==='all'||itemKind(item)===inventoryFilter);
- return `<div class="list inventory-list">${items.map(i=>`<div class="row" ${filtered?`data-search-group="inventory" data-search="${esc((i.name+' '+i.key+' '+(i.desc||'')).toLowerCase())}"`:''}><div class="symbol">${esc(i.icon)}</div><div class="row-main"><h3>${esc(i.name)} <span class="badge">×${i.qty}</span></h3><p>${esc(i.desc||i.type||'Ресурс для выживания')}</p></div>${i.equipped?'<span class="badge">Надето</span>':i.type==='consumable'?btn('Использовать','use','small gold',i.key):i.type==='case'?btn('ОТКРЫТЬ','case-open','small gold',i.key):i.type==='chest'?btn('ОТКРЫТЬ','chest-open','small gold',i.key):['weapon','armor'].includes(i.type)?btn('Надеть','equip','small ghost',i.key):''}</div>`).join('')||'<div class="empty">По этой категории пока нет предметов</div>'}</div>${filtered?'<div class="empty search-empty" data-filter-empty="inventory" hidden>Ничего не найдено. Попробуй другой запрос.</div>':''}`;
+ const items=ownedInventory().filter(item=>!filtered||inventoryFilter==='all'||
+   (inventoryFilter==='unique'?item.isUniqueGear:itemKind(item)===inventoryFilter));
+ return `<div class="list inventory-list">${items.map(i=>{
+  const search=`${i.name||''} ${i.key||''} ${i.desc||''} ${i.rarity_name||''}`.toLowerCase();
+  const unique=i.isUniqueGear;
+  return `<div class="row ${unique?'inventory-unique':''}" ${filtered?`data-search-group="inventory" data-search="${esc(search)}"`:''}>
+   <div class="symbol">${esc(i.icon)}</div><div class="row-main">
+     <h3>${esc(i.name)} ${unique?`<span class="badge" style="color:${esc(i.color||'#e6c48e')}">${esc(i.rarity_name)} +${i.level}</span>`:`<span class="badge">×${i.qty}</span>`}</h3>
+     <p>${esc(i.desc||i.type||'Ресурс для выживания')}${unique?' · Уникальный экземпляр':''}</p>
+   </div>
+   ${unique?btn(i.equipped?'НАДЕТО ↗':'К ПУШКЕ ↗','nav','small gold','gear'):i.equipped?'<span class="badge">Надето</span>':i.type==='consumable'?btn('Использовать','use','small gold',i.key):i.type==='case'?btn('ОТКРЫТЬ','case-open','small gold',i.key):i.type==='chest'?btn('ОТКРЫТЬ','chest-open','small gold',i.key):['weapon','armor'].includes(i.type)?btn('Надеть','equip','small ghost',i.key):''}
+ </div>`;
+ }).join('')||'<div class="empty">В этой категории пока нет предметов</div>'}</div>${filtered?'<div class="empty search-empty" data-filter-empty="inventory" hidden>Ничего не найдено. Попробуй другой запрос.</div>':''}`;
 }
 function bestiaryScreen(){const enemies=cfg.enemies||{},codex=me.enemy_codex||{};const total=Object.keys(codex).length,defeated=Object.values(codex).filter(x=>x.kills>0).length;
  return `${section('ПОЛЕВОЙ БЕСТИАРИЙ',`${total}/10 ОБНАРУЖЕНО`)}<div class="codex-summary"><div><span class="eyebrow">АРХИВ ЗАРАЖЁННЫХ</span><h3>${total} обнаружено · ${defeated} побеждено</h3><p>Первая победа над новым видом: +25 XP и +15 крышек. Собери все десять досье.</p></div>${icon('book')}</div><div class="bestiary-grid">${Object.entries(enemies).map(([id,m])=>{const entry=codex[id]||{},seen=!!entry.seen;return `<article class="bestiary-card ${seen?'seen':'undiscovered'}"><div class="bestiary-portrait">${mobPortrait(id)}</div><div class="bestiary-rank">${seen?'ВСТРЕЧЕН':'НЕИЗВЕСТЕН'} · РАНГ ${m.tier}/5</div><h3>${esc(m.name)}</h3><p>${seen?esc(m.lore):'Не обнаружен. Исследуй более опасные локации.'}</p>${seen?`<div class="bestiary-ability">${icon('target')} ${esc(m.skill)}</div><div class="bestiary-counter">Побед: <b>${Number(entry.kills)||0}</b> · ${Number(entry.kills)>0?'ДОСЬЕ ЗАКРЫТО':'ТРОФЕЙ НЕ ПОЛУЧЕН'}</div>`:`<div class="bestiary-ability muted">${icon('target')} Приём неизвестен</div>`}</article>`}).join('')}</div>${btn('НА КАРТУ','nav','gold full','map')}`}
@@ -275,8 +296,8 @@ function notificationsScreen(){
 function filterTabs(action,active,choices){return `<div class="filter-tabs">${choices.map(([key,label])=>`<button type="button" class="filter-pill ${active===key?'active':''}" data-action="${action}" data-value="${key}">${esc(label)}</button>`).join('')}</div>`}
 function searchBox(group,value,label){return `<label class="search-label" for="search-${group}">${label}</label><input id="search-${group}" class="list-search" data-list-search="${group}" type="search" value="${esc(value)}" placeholder="Название или материал…" autocomplete="off" maxlength="64">`}
 function inventoryScreen(){
- const total=(me.inventory||[]).reduce((n,i)=>n+i.qty,0);
- return `<div class="panel"><div class="flex-between"><div><strong>⚔ Твоя уникальная экипировка</strong><p class="smallnote">${(me.gear||[]).length} предметов на складе</p></div>${btn('АРСЕНАЛ ↗','nav','small gold','gear')}</div></div>${section('РЮКЗАК',`${total} ПРЕДМЕТОВ`)}<div class="panel item-filters">${searchBox('inventory',inventoryQuery,'БЫСТРЫЙ ПОИСК')}${filterTabs('inventory-filter',inventoryFilter,[['all','Все'],['material','Ресурсы'],['consumable','Расходники'],['weapon','Оружие'],['armor','Броня'],['case','Кейсы'],['chest','Сундуки']])}</div>${inventory(true)}`;
+ const total=ownedInventory().reduce((n,i)=>n+i.qty,0);
+ return `<div class="panel"><div class="flex-between"><div><strong>⚔ Твоя уникальная экипировка</strong><p class="smallnote">${(me.gear||[]).length} предметов на складе</p></div>${btn('АРСЕНАЛ ↗','nav','small gold','gear')}</div></div>${section('РЮКЗАК',`${total} ПРЕДМЕТОВ`)}<div class="panel item-filters">${searchBox('inventory',inventoryQuery,'БЫСТРЫЙ ПОИСК')}${filterTabs('inventory-filter',inventoryFilter,[['all','Все'],['unique','Уникальное'],['material','Ресурсы'],['consumable','Расходники'],['weapon','Оружие'],['armor','Броня'],['case','Кейсы'],['chest','Сундуки']])}</div>${inventory(true)}`;
 }
 function craftScreen(){
  const entries=Object.entries(cfg.recipes||{}).map(([key,r])=>{const item=cfg.items[r.output||key];
@@ -458,6 +479,7 @@ const forms={
 async function handle(action,value){
   if(loading&&action!=='close')return;
   if(action==='close'){modal=null;render();return}
+   if(action==='loot-to-inventory'){modal=null;inventoryFilter='all';inventoryQuery='';await nav('inventory');render();return}
   if(action==='pet-adopt'){await act('pets/adopt',{key:value});return}
   if(action==='back'){await goBack();return}
   if(action==='nav'){modal=null;await nav(value);return}
@@ -655,7 +677,7 @@ async function handle(action,value){
       const out=await act('chests/open',{key});
       if(out?.rewards){
         const details=out.rewards.map(x=>x.kind==='gear'?(`⚔ ${esc(x.gear.rarity_name)} ${esc(x.name)}`):(`${esc(cfg.items[x.key]?.icon||'▣')} ${esc(cfg.items[x.key]?.name||x.key)} ×${x.qty}`));
-        showModal('🎉 ТВОИ НАГРАДЫ',`<div class="case-prizes">${details.map(v=>`<div class="case-prize">${v}</div>`).join('')}</div>`,'close','ЗАБРАТЬ');
+        showModal('🎉 НАГРАДЫ СОХРАНЕНЫ',`<p class="smallnote">Все предметы — в рюкзаке. Уникальное оружие теперь тоже видно там и в Арсенале.</p><div class="case-prizes">${details.map(v=>`<div class="case-prize">${v}</div>`).join('')}</div>`,'loot-to-inventory','В ИНВЕНТАРЬ');
       }
     }
     return;
@@ -671,7 +693,7 @@ async function handle(action,value){
       const result=await act('cases/open',{key});
       if(result?.gear){
         const g=result.gear;
-        showModal('🎉 ТВОЯ НОВАЯ ПУШКА',`<div class="case-prizes"><div class="case-prize"><strong>${esc(g.icon)} ${esc(g.rarity_name)} ${esc(g.name)}</strong><p>⚔ Урон: ${Number(g.power)||0} · Прочность: ${Number(g.durability)||100}/100</p><p>Коллекционная серия · Усиление до +10</p></div></div>`,'close','ЗАБРАТЬ');
+        showModal('🎉 ТВОЯ НОВАЯ ПУШКА',`<div class="case-prizes"><div class="case-prize"><strong>${esc(g.icon)} ${esc(g.rarity_name)} ${esc(g.name)}</strong><p>⚔ Урон: ${Number(g.power)||0} · Прочность: ${Number(g.durability)||100}/100</p><p>Коллекционная серия · Усиление до +10</p></div></div>`,'loot-to-inventory','В ИНВЕНТАРЬ');
       }
     }
     return;

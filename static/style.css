@@ -358,3 +358,10 @@
 .gear-repair-batch .btn{flex-shrink:0}
 .gear-collection .gear-card[hidden]{display:none!important}
 @media(max-width:390px){.gear-repair-batch .flex-between{align-items:flex-start;flex-direction:column;gap:10px}.gear-repair-batch .btn{width:100%}}
+
+/* 0.39: unique weapons/armor remain GearItem, visibly in the unified backpack. */
+.inventory-unique{border:1px solid #8c7850!important;background:linear-gradient(105deg,#3a342538,#192429)!important}
+.inventory-unique .symbol{border:1px solid #997950;border-radius:9px;background:radial-gradient(circle,#67522a50,#161c20)}
+.inventory-unique .row-main p{line-height:1.5;color:#cbbf9f}
+.inventory-unique .badge{font-size:10px;border:1px solid #94744c;background:#352a1d}
+@media(max-width:380px){.inventory-unique .row-main p{font-size:10px}.inventory-unique .btn{font-size:9px}}
