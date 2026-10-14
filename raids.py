@@ -304,7 +304,13 @@ def install_raids(app, with_player, ready):
                 threat={'outpost':2,'vault':4,'citadel':5}[r.scenario]
                 try:drop=gear_view(roll_drop(db,p.id,threat,minimum=min_rarity))
                 except ValueError:pass  # Locker cap must not block currency/XP rewards.
+            # Battle cases are earned from cleared raids; no Stars payments.
+            case_key=None
+            probability={'outpost':.20,'vault':.45,'citadel':.65}[r.scenario]
+            if random.random()<probability:
+                case_key={'outpost':'field_case','vault':'military_case','citadel':'relic_case'}[r.scenario]
+                give_item(db,p.id,case_key)
             member.rewarded=True
-            return {'message':f'Награда: {xp} XP, {caps} крышек и редкие припасы!'+(' · '+drop['rarity_name']+' '+drop['name'] if drop else ''), 'xp':xp,'caps':caps,'gear_drop':drop}
+            return {'message':f'Награда: {xp} XP, {caps} крышек и редкие припасы!'+(' · '+drop['rarity_name']+' '+drop['name'] if drop else ''), 'xp':xp,'caps':caps,'gear_drop':drop,'case_drop':case_key}
 
     app.include_router(router)
