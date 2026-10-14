@@ -284,6 +284,41 @@ def repair_gear(db,player,item_id):
     return item
 
 
+def repair_equipped_all(db,player):
+    """Atomically repair only the player's equipped, damaged unique gear.
+
+    Resource requirements are accumulated before any changes. In particular
+    both weapon and armor may consume metal: checking separately would permit
+    a double-spend with SQLAlchemy autoflush disabled.
+    """
+    from game import item_count,take_item
+    equipped=list(db.scalars(select(GearItem).where(
+        GearItem.player_id==player.id,GearItem.equipped.is_(True))
+        .order_by(GearItem.id).with_for_update()))
+    damaged=[(item,repair_cost(item)) for item in equipped]
+    damaged=[(item,cost) for item,cost in damaged if cost]
+    if not damaged:raise ValueError('Надетая экипировка уже в порядке')
+    caps=sum(cost['caps'] for _,cost in damaged)
+    totals={}
+    for _,cost in damaged:
+        totals[cost['material']]=totals.get(cost['material'],0)+cost['qty']
+        if cost['rare']:totals['rare']=totals.get('rare',0)+cost['rare']
+    if player.caps<caps:raise ValueError(f'Нужно {caps} крышек на ремонт комплекта')
+    for material,qty in totals.items():
+        if item_count(db,player.id,material)<qty:
+            raise ValueError(f'Не хватает {material}: нужно {qty}')
+    player.caps-=caps
+    for material,qty in totals.items():take_item(db,player.id,material,qty)
+    for item,_ in damaged:
+        if item.condition is None:
+            # A missing condition row denotes pristine legacy gear and cannot
+            # happen with nonzero repair_cost, but this remains defensive.
+            item.condition=GearCondition(durability=MAX_DURABILITY)
+        else:item.condition.durability=MAX_DURABILITY
+    return {'count':len(damaged),'caps':caps,'materials':totals,
+            'items':[gear_view(item) for item,_ in damaged]}
+
+
 def roll_case_drop(threat,rng=None):
     """Return one optional stackable case key per won fight."""
     rng=rng or random
@@ -508,6 +543,14 @@ def install_gear(app,with_player,ready):
             item=repair_gear(db,p,body.id)
             return {'message':f'Восстановлена прочность: {BASE_GEAR[item.base_key]["name"]} (100%)',
                     'item':gear_view(item)}
+
+    @router.post('/repair-all')
+    def repair_all(request:Request,db:Session=Depends(session)):
+        with db.begin():
+            p=with_player(request,db);ready(p)
+            result=repair_equipped_all(db,p)
+            return {'message':f'🔧 Отремонтировано предметов: {result["count"]} · потрачено {result["caps"]} крышек',
+                    **result}
 
     @router.post('/dismantle')
     def dismantle(body:IdBody,request:Request,db:Session=Depends(session)):

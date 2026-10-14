@@ -20,6 +20,7 @@ let cfg=null,me=null,screen='home',activePath=0,sub='inventory',loading=false,mo
 let auth=tg?.initData?'tma '+tg.initData:(location.search.includes('demo=1')?'demo:1001':'');
 let toastTimer;
 let inventoryFilter='all',inventoryQuery='',craftFilter='all',craftQuery='',craftReadyOnly=false;
+let gearSlotFilter='all',gearSort='equipped',gearQuery='';
 const money=n=>Number(n||0).toLocaleString('ru-RU');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pct=(a,b)=>Math.min(100,Math.max(0,Math.round(a/Math.max(1,b)*100)));
@@ -48,7 +49,7 @@ function art(klass='soldier',zombie=false){
 }
 function uiIcon(name){return icon(name)}
 function icon(name){const paths={book:'<path d="M12 6C9 4 6 4 3 5v15c4-2 7-1 9 1 2-2 5-3 9-1V5c-3-1-6-1-9 1zM12 6v15"/>',bag:'<path d="M5 9h14l1 12H4L5 9zm4 0V6a3 3 0 0 1 6 0v3"/>',hammer:'<path d="m4 20 12-12M12 4l4-2 6 6-2 4zM2 9l5-5"/>',shop:'<path d="M3 10h18v11H3zM2 10l3-7h14l3 7M9 21v-7h6v7"/>',exchange:'<path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4"/>',check:'<path d="m3 12 6 6L21 6"/>',leader:'<path d="M4 7h16v4c0 5-3 7-8 7s-8-2-8-7V7zm8 11v3M7 21h10M4 9H2c0 4 1 6 4 6m14-6h2c0 4-1 6-4 6"/>',home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',map:'<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.5 5-4.5 2 2-4.5z"/>',hero:'<circle cx="12" cy="7" r="4"/><path d="M4 21v-2c0-4 3-6 8-6s8 2 8 6v2"/>',clan:'<circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M2 20v-2c0-4 2-6 6-6s7 2 7 6v2H2Zm14 0h6v-3q0-3-4-4"/>',menu:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',coins:'<circle cx="12" cy="12" r="9"/><path d="M15 8.5H10a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H9m3-11v13"/>',gem:'<path d="m2 9 4-5h12l4 5-10 12zM2 9h20M6 4l6 17L18 4"/>',skull:'<path d="M6 17V9a6 6 0 0 1 12 0v8l-2 2v2h-8v-2z"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><path d="M11 16h2"/>',shield:'<path d="m12 2 8 4v6c0 5-4 9-8 10-4-1-8-5-8-10V6z"/>',swords:'<path d="M4 20 17 7l1-4 3 3-4 1L4 20zm0-4 4 4m12 0L7 7 6 3 3 6l4 1 13 13zm0-4-4 4"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/>'};return `<svg class="ui-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.menu}</svg>`}
-function header(){return `<header class="top"><div class="brand">ZOMBO<span>AFTER THE FALL · 0.36.0</span></div><div class="currencies"><div class="currency">${icon('coins')} <b>${money(me?.caps)}</b></div><div class="currency gem">${icon('gem')} <b>${money(me?.zombo)}</b></div></div></header>`}
+function header(){return `<header class="top"><div class="brand">ZOMBO<span>AFTER THE FALL · 0.37.0</span></div><div class="currencies"><div class="currency">${icon('coins')} <b>${money(me?.caps)}</b></div><div class="currency gem">${icon('gem')} <b>${money(me?.zombo)}</b></div></div></header>`}
 
 function navBar(){let tabs=[['home','home','База'],['map','map','Карта'],['profile','hero','Герой'],['clan','clan','Клан'],['more','menu','Меню']];return `<nav class="bottom-nav">${tabs.map(([id,ico,label])=>`<button data-action="nav" data-value="${id}" class="${(screen===id||(screen==='talents'&&id==='profile')||(['pvp','boss','market','leaders','quests','shop','cases','stars','pets','bestiary','raids','expeditions','gear','story','gear-market','admin','world-events','notifications','encounters'].includes(screen)&&id==='more'))?'active':''}"><span class="nav-ico">${icon(ico)}</span>${label}</button>`).join('')}</nav>`}
 function miniStats(){return `<div class="panel"><div class="flex-between"><div><span class="tag">Здоровье · энергия · опыт</span><h3 style="margin:6px 0;font:600 18px Oswald">${esc(me.name)} <span style="color:var(--gold)">LVL ${me.level}</span></h3></div>${btn('Профиль ↗','nav','ghost','profile')}</div><div class="bar-label"><span>♥ Здоровье</span><em>${me.hp} / ${me.max_hp}</em></div>${bar(me.hp,me.max_hp,'red')}<div class="bar-label"><span>ϟ Энергия</span><em>${me.stamina} / 500</em></div>${bar(me.stamina,500,'blue')}<div class="bar-label"><span>✧ Опыт</span><em>${money(me.xp)} / ${money(me.xp_next)}</em></div>${bar(me.xp,me.xp_next)}</div>`}
@@ -104,18 +105,34 @@ function profile(){let klass=cfg.classes[me.class];return `<div class="profilehe
 function gearScreen(){
  const gear=(me.gear||[]),statistics=me.gear_stats||{power:0,defense:0};
  const equipped=gear.filter(g=>g.equipped);
+ const visible=gear.filter(g=>gearSlotFilter==='all'||g.slot===gearSlotFilter).slice().sort((a,b)=>{
+   if(gearSort==='rarity')return b.rarity_rank-a.rarity_rank||b.level-a.level||b.id-a.id;
+   if(gearSort==='power')return (b.slot==='weapon'?b.power:b.defense)-(a.slot==='weapon'?a.power:a.defense)||b.rarity_rank-a.rarity_rank;
+   if(gearSort==='worn')return a.durability-b.durability||b.id-a.id;
+   return Number(b.equipped)-Number(a.equipped)||b.rarity_rank-a.rarity_rank||b.id-a.id;
+ });
  const invcount=(key)=>(me.inventory||[]).filter(i=>i.key===key&&!i.equipped).reduce((n,i)=>n+i.qty,0);
  const bySlot=slot=>equipped.find(g=>g.slot===slot);
  const slotLine=(slot,label,empty)=>{const g=bySlot(slot);return `<div class="gear-slot"><span class="gear-slot-icon">${g?esc(g.icon):slot==='weapon'?'⚔':'⬡'}</span><div><small>${label}</small><strong>${g?esc(g.name)+' +'+g.level:empty}</strong>${g?`<span style="color:${g.color}">${esc(g.rarity_name)}</span>`:''}</div><b>${g?(slot==='weapon'?'⚔ '+g.power:'⛨ '+g.defense):'—'}</b></div>`};
+ const repairable=equipped.filter(g=>g.repair_cost);
+ const fullCost=repairable.reduce((sum,g)=>{
+   const r=g.repair_cost;sum.caps+=r.caps;
+   sum.materials[r.material]=(sum.materials[r.material]||0)+r.qty;
+   if(r.rare)sum.materials.rare=(sum.materials.rare||0)+r.rare;
+   return sum;
+ },{caps:0,materials:{}});
+ const canRepairAll=me.caps>=fullCost.caps&&Object.entries(fullCost.materials).every(([key,qty])=>invcount(key)>=qty);
  const box=g=>{const c=g.upgrade_cost,r=g.repair_cost,canUp=c&&me.caps>=c.caps&&invcount(c.material)>=c.qty&&invcount('rare')>=c.rare;
  const canRepair=r&&me.caps>=r.caps&&invcount(r.material)>=r.qty&&invcount('rare')>=r.rare;
- return `<div class="gear-card ${g.equipped?'gear-equipped':''}" style="--rarity:${esc(g.color)}"><div class="gear-item-top"><div class="gear-item-art">${esc(g.icon)}</div><div class="gear-item-title"><span class="gear-rarity">${esc(g.rarity_name)} · ${g.slot==='weapon'?'ОРУЖИЕ':'БРОНЯ'}</span><h3>${esc(g.name)} <span>+${g.level}</span></h3><p>${g.slot==='weapon'?'Урон: '+g.power:'Броня: '+g.defense} ${g.equipped?' · НАДЕТО':''}${g.exclusive?' · ТОЛЬКО ИЗ КЕЙСА':''}</p><p class="smallnote">${g.durability<=0?'⚠ СЛОМАНО':'🔧 ПРОЧНОСТЬ'}: ${g.durability}/100 · ${g.durability<40?'снижены характеристики':'полная эффективность'}</p></div></div><div class="gear-rank-track">${Array.from({length:10},(_,i)=>`<span class="${i<g.level?'done':''}"></span>`).join('')}</div>
+ const current=equipped.find(item=>item.slot===g.slot),delta=current&&!g.equipped?(g.slot==='weapon'?g.power-current.power:g.defense-current.defense):null;
+ return `<div class="gear-card ${g.equipped?'gear-equipped':''}" data-search-group="gear" data-search="${esc((g.name+' '+g.key+' '+g.rarity_name+' '+g.slot).toLowerCase())}" style="--rarity:${esc(g.color)}"><div class="gear-item-top"><div class="gear-item-art">${esc(g.icon)}</div><div class="gear-item-title"><span class="gear-rarity">${esc(g.rarity_name)} · ${g.slot==='weapon'?'ОРУЖИЕ':'БРОНЯ'}</span><h3>${esc(g.name)} <span>+${g.level}</span></h3><p>${g.slot==='weapon'?'Урон: '+g.power:'Броня: '+g.defense} ${g.equipped?' · НАДЕТО':''}${g.exclusive?' · ТОЛЬКО ИЗ КЕЙСА':''}</p><p class="smallnote">${g.durability<=0?'⚠ СЛОМАНО':'🔧 ПРОЧНОСТЬ'}: ${g.durability}/100 · ${g.durability<40?'снижены характеристики':'полная эффективность'}</p>${delta!==null?`<p class="gear-compare ${delta>=0?'good':'bad'}">↔ Относительно надетого: ${delta>=0?'+':''}${delta} ${g.slot==='weapon'?'к урону':'к броне'}</p>`:''}</div></div><div class="gear-rank-track">${Array.from({length:10},(_,i)=>`<span class="${i<g.level?'done':''}"></span>`).join('')}</div>
  ${r?`<p class="gear-cost">Ремонт: 🪙 ${money(r.caps)} · ${esc(cfg.items[r.material]?.icon||'⚙')} ${r.qty}${r.rare?' · 🏅 '+r.rare:''}</p>`:''}
  ${c?`<p class="gear-cost">Улучшение +${g.level+1}: 🪙 ${money(c.caps)} · ${esc(cfg.items[c.material]?.icon||'⚙')} ${c.qty}${c.rare?' · 🏅 '+c.rare:''}</p>`:'<p class="gear-cost">✦ Максимальный уровень улучшения!</p>'}
  <div class="gear-actions">${btn(g.equipped?'СНЯТЬ':'НАДЕТЬ',g.equipped?'gear-unequip':'gear-equip','small '+(g.equipped?'ghost':'gold'),g.id)}${btn('УЛУЧШИТЬ','gear-upgrade','small soft',g.id,!canUp)}${btn('ПОЧИНИТЬ','gear-repair','small gold',g.id,!canRepair)}${btn('РАЗОБРАТЬ','gear-dismantle','small ghost',g.id,g.equipped)}</div></div>`};
  return `${section('АРСЕНАЛ ПУСТОШИ','УНИКАЛЬНАЯ ЭКИПИРОВКА')}<div class="gear-hero"><div class="eyebrow">// ОРУЖЕЙНЫЙ ОТСЕК</div><h1>ВЫЖИВАЙ<br><span>СИЛЬНЕЕ.</span></h1><p>Найди редкое оружие в боях и рейдах, собери комплект и прокачай его до +10.</p><div class="gear-hero-stats"><div><small>ОРУЖИЕ</small><b>+${statistics.power||0}</b></div><div><small>БРОНЯ</small><b>+${statistics.defense||0}</b></div><div><small>НА СКЛАДЕ</small><b>${gear.length}/80</b></div></div></div>
  ${section('НАДЕТО','БОЕВЫЕ СЛОТЫ')}<div class="gear-equipped-panel">${slotLine('weapon','ОСНОВНОЕ ОРУЖИЕ','Без уникального оружия')}${slotLine('armor','ЗАЩИТА','Без уникальной брони')}</div>
- ${section('КОЛЛЕКЦИЯ',`${gear.length} ПРЕДМЕТОВ`)}${gear.length?`<div class="gear-collection">${gear.map(box).join('')}</div>`:`<div class="panel gear-empty"><h3>Пока пусто</h3><p>Ищи снаряжение в боях с заражёнными, проходи групповые рейды или создавай его в мастерской.</p>${btn('НА КАРТУ','nav','gold','map')}${btn('К МАСТЕРСКОЙ','nav','ghost','craft')}</div>`}
+ ${repairable.length?`<div class="panel gear-repair-batch"><div class="flex-between"><div><h3>🔧 Ремонт комплекта</h3><p class="smallnote">${repairable.length} предметов · ${money(fullCost.caps)} крышек · ${Object.entries(fullCost.materials).map(([key,n])=>esc(cfg.items[key]?.name||key)+' ×'+n).join(', ')}</p></div>${btn('ПОЧИНИТЬ ВСЁ','gear-repair-all','small gold','',!canRepairAll)}</div>${!canRepairAll?'<p class="smallnote">Недостаточно крышек или материалов. Ничего не будет списано.</p>':''}</div>`:''}
+ ${section('КОЛЛЕКЦИЯ',`${gear.length} ПРЕДМЕТОВ`)}<div class="panel item-filters">${searchBox('gear',gearQuery,'ПОИСК В АРСЕНАЛЕ')}${filterTabs('gear-filter',gearSlotFilter,[['all','Всё'],['weapon','Оружие'],['armor','Броня']])}<label class="search-label" for="gear-sort">СОРТИРОВКА</label><select id="gear-sort"><option value="equipped" ${gearSort==='equipped'?'selected':''}>Сначала надетое</option><option value="rarity" ${gearSort==='rarity'?'selected':''}>По редкости</option><option value="power" ${gearSort==='power'?'selected':''}>По силе</option><option value="worn" ${gearSort==='worn'?'selected':''}>По износу</option></select></div>${gear.length?`<div class="gear-collection">${visible.map(box).join('')}${!visible.length?'<div class="empty">В категории пока нет вещей.</div>':''}</div><div class="empty search-empty" data-filter-empty="gear" hidden>Ничего не найдено.</div>`:`<div class="panel gear-empty"><h3>Пока пусто</h3><p>Ищи снаряжение в боях с заражёнными, проходи групповые рейды или создавай его в мастерской.</p>${btn('НА КАРТУ','nav','gold','map')}${btn('К МАСТЕРСКОЙ','nav','ghost','craft')}</div>`}
  <div class="panel gear-help"><h3>Как работает снаряжение?</h3><p><b>Обычное → Необычное → Редкое → Эпическое → Легендарное.</b> Больше редкость — сильнее базовые характеристики. Улучшение до +10 расходует крышки и материалы, на уровнях +5, +8 и +10 нужны военные жетоны. Экипировка изнашивается при атаках и ударах врага. При прочности меньше 40 снижаются параметры, при 0 бонус равен нулю. Ремонт за крышки и материалы восстанавливает 100%. Особые пушки доступны только из кейсов. Ненужную вещь можно разобрать, но экипированные предметы разбирать нельзя. Старое снаряжение остаётся доступным в рюкзаке.</p></div>`;
 }
 function inventory(filtered=false){
@@ -291,7 +308,7 @@ function clanMissionsBoard(){
   <div class="mission-footer"><div><strong>Твой вклад: ${money(t.mine)} / ${t.minimum}</strong><small>Личная награда: ${money(t.personal_caps)} крышек · ${money(t.personal_xp)} XP</small></div>
   ${btn(t.claimed?'ПОЛУЧЕНО':t.can_claim?'ЗАБРАТЬ':'НЕ ГОТОВО','clan-mission-claim','small gold',t.code,!t.can_claim)}
   </div></article>`).join('')}</div>`:
-  `<div class="panel"><strong>Общие задания открываются после вступления в клан.</strong><p class="smallnote">Собирайте припасы, уничтожайте заражённых и сражайтесь с Колоссом, чтобы пополнять казну и повышать уровень клана.</p></div>`}
+  `<div class="panel"><strong>Общие задания открываются после вступления в клан.</strong><p class="smallnote">Собирайте припасы, уничтожайте заражённых и сражайтесь с мировым боссом, чтобы пополнять казну и повышать уровень клана.</p></div>`}
   ${section('РЕЙТИНГ КЛАНОВ','ТЕКУЩИЙ МЕСЯЦ')}
   <div class="mission-rank-list">${ranking.map((r,i)=>`<div class="mission-rank"><span class="mission-place">${i+1}</span><div><strong>${esc(r.name)}</strong><small>${r.completed} заданий завершено</small></div><b>${money(r.points)} ✦</b></div>`).join('')||'<div class="panel smallnote">Пока ни один клан не выполнил поручения в этом сезоне.</div>'}</div>
   ${section('ИСТОРИЯ СЕЗОНОВ','ПРИЗОВАЯ ТРОЙКА')}
@@ -375,7 +392,7 @@ function casesScreen(){
  return `${section('ПРЕМИУМ-СУНДУКИ','ТРИ УРОВНЯ · 3 / 4 / 5 НАГРАД')}<div class="case-intro"><span class="eyebrow">// ПРЕМИУМ-АРСЕНАЛ ZOMBO</span><h2>ОТКРОЙ НАХОДКУ.<br><b>СОБЕРИ КОЛЛЕКЦИЮ.</b></h2><p>Никаких кейсов за крышки или из обычного фарма. Каждый сундук содержит коллекционную пушку и дополнительные припасы. Деньги списываются только с баланса 💎 Zombo после оплаты Stars.</p><div class="case-stats"><span>💎 ${money(me.zombo)} ZOMBO</span><span>▣ ${catalog.length} КЕЙСОВ</span><span>⚔ 28 ПУШЕК</span></div></div>
  <div class="case-gallery premium-gallery">${chests.map(c=>{const stock=owned(c.key);return `<article class="case-item chest-tier ${c.key}"><div class="case-heading"><div class="case-illustration">${esc(c.icon)}</div><div><span class="eyebrow">ПРЕМИУМ · ${c.drops} НАГРАДЫ</span><h3>${esc(c.name)}</h3><p>${esc(c.desc)}</p></div></div><div class="case-odds">${Object.entries(c.rarity_weights||{}).map(([rarity,pct])=>`<span class="case-odds-cell rarity-${rarity}">${esc(rarityNames[rarity]||rarity)} <b>${pct}%</b></span>`).join('')}</div><p class="smallnote">Гарантия: ${esc(c.guarantee)}</p><div class="case-actions"><span class="case-owned">В наличии: ×${stock}</span>${stock?btn('🔓 ОТКРЫТЬ','chest-open','small gold',c.key):btn('💎 '+c.price,'premium-buy','small gold',c.key,me.zombo<c.price)}</div></article>`}).join('')}</div>
  ${section('КОЛЛЕКЦИИ ОРУЖИЯ','7 КЕЙСОВ · 28 ПУШЕК')}<div class="case-gallery">${catalog.map(([key,c])=>{const stock=owned(key);return `<article class="case-item tier-${Math.min(6,c.tier)}"><div class="case-heading"><div class="case-illustration">${esc(c.icon)}</div><div><span class="eyebrow">ПОКУПКА ЗА ZOMBO</span><h3>${esc(c.name)}</h3><p>${esc(c.desc)}</p></div></div><div class="case-odds">${Object.entries(c.rarity_weights||{}).map(([rarity,pct])=>`<span class="case-odds-cell rarity-${rarity}">${esc(rarityNames[rarity]||rarity)} <b>${pct}%</b></span>`).join('')}</div><div class="case-weapons">${(c.weapons||[]).map(id=>{const item=cfg.items[id]||{};return `<div class="case-weapon"><span>${esc(item.icon||'🔫')} ${esc(item.name||id)}</span><strong>⚔ ${Number(item.power)||0}</strong></div>`}).join('')}</div><div class="case-actions"><span class="case-owned">В наличии: ×${stock}</span>${stock?btn('🔓 ОТКРЫТЬ','case-open','small gold',key):btn('💎 '+c.gem_price,'premium-buy','small gold',key,me.zombo<c.gem_price)}</div></article>`}).join('')}</div>
- <div class="panel mt"><h3>ЧЕСТНЫЕ ШАНСЫ</h3><p class="smallnote">Шансы внутри кейсов и сундуков указаны до оплаты. Обычный сундук гарантирует оружие обычной редкости или выше, редкий — необычной или выше, легендарный — эпической или легендарной. Старые кейсы, уже лежащие в инвентаре, сохраняются и открываются.</p>${btn('💎 ПОПОЛНИТЬ ZOMBO','nav','gold full','stars')}</div>`;
+ <div class="panel mt"><h3>ЧЕСТНЫЕ ШАНСЫ</h3><p class="smallnote">Шансы внутри кейсов и сундуков указаны до оплаты. Обычный сундук гарантирует оружие обычной редкости или выше, редкий — редкой или выше, легендарный — эпической или легендарной. Старые кейсы, уже лежащие в инвентаре, сохраняются и открываются.</p>${btn('💎 ПОПОЛНИТЬ ZOMBO','nav','gold full','stars')}</div>`;
 }
 function shopScreen(){return `${section('ТОРГОВЕЦ','КРЫШКИ')}<div class="panel"><div class="flex-between"><div><h3>🎁 Кейсы — теперь в премиуме</h3><p class="smallnote">Сундуки и коллекционное оружие доступны за 💎 Zombo, а здесь — полезные припасы за крышки.</p></div>${btn('СУНДУКИ ↗','nav','small gold','cases')}</div></div><div class="list">${(shop||[]).map(item=>`<div class="row"><div class="symbol">${item.icon}</div><div class="row-main"><h3>${item.name}</h3><p>${item.desc||'Полезно в пустоши'}</p></div>${btn('🪙 '+item.price,'shop-buy','small gold',item.key,me.caps<item.price)}</div>`).join('')}</div>`}
 function starsScreen(){const offers=premium||[];const upgrades=offers.filter(o=>!['case','chest'].includes(o.kind));
@@ -406,7 +423,7 @@ if(adminTab==='ledger'){const rows=adminLedger?.items||[];content=`<div class="p
 if(adminTab==='diagnostics'){const o=adminOperations||{},n=adminNotifications||{};const metrics=[['Рейды: набор',o.raids_lobby],['Рейды: в бою',o.raids_active],['Рейды: просрочены',o.raids_overdue],['Экспедиции: активны',o.expeditions_active],['Экспедиции: просрочены',o.expeditions_overdue],['Очередь: ожидают',o.notifications_pending],['Очередь: готовы',o.notifications_due],['Отправляются',o.notifications_sending],['Зависшие аренды',o.notifications_stuck],['Ошибки за 24 ч',o.notifications_failed_24h]];content=`<div class="panel"><h3>СОСТОЯНИЕ ОПЕРАЦИЙ</h3><p class="smallnote">Проверено: ${esc(o.checked_at||'—')}. Старейшее ожидающее сообщение: ${esc(o.oldest_due_at||'нет')}.</p><div class="admin-stats">${metrics.map(([label,value])=>`<div class="stat-chip"><small>${esc(label)}</small><strong>${money(value||0)}</strong></div>`).join('')}</div></div>${section('ОЧЕРЕДЬ TELEGRAM','БЕЗ ТЕКСТОВ СООБЩЕНИЙ')}<div class="panel admin-filters"><div><label>Статус</label><select id="admin-notice-status">${[['','Все'],['pending','Ожидает'],['sending','Отправляется'],['sent','Отправлено'],['skipped','Пропущено'],['failed','Ошибка']].map(([key,label])=>`<option value="${key}" ${adminNoticeStatus===key?'selected':''}>${label}</option>`).join('')}</select></div><div><label>Категория</label><select id="admin-notice-category">${[['','Все'],['expeditions','Экспедиции'],['market','Рынок'],['raids','Рейды'],['clans','Кланы']].map(([key,label])=>`<option value="${key}" ${adminNoticeCategory===key?'selected':''}>${label}</option>`).join('')}</select></div>${btn('ПОКАЗАТЬ','admin-notice-filter','small gold')}</div><div class="list">${(n.items||[]).map(row=>`<div class="row"><div class="row-main"><h3>#${row.id} · ${esc(row.category)} · ${esc(row.status)}</h3><p>Игрок #${row.player_id} · ${esc(row.kind)} · попыток ${row.attempts}<br>Запланировано: ${esc(row.scheduled_at)}${row.last_error?' · '+esc(row.last_error):''}</p></div></div>`).join('')||'<div class="empty">Событий с такими фильтрами нет.</div>'}</div><div class="actions">${btn('←','admin-notice-page','soft',adminNoticePage-1,adminNoticePage<=1)}<span class="tag">СТР. ${adminNoticePage}</span>${btn('→','admin-notice-page','soft',adminNoticePage+1,!n.has_next)}</div>`}
 if(adminTab==='treasury'){const rows=adminTreasury?.items||[];content=`<div class="panel admin-filters"><div><label>ID клана</label><input id="admin-treasury-clan" type="number" min="1" value="${esc(adminTreasuryClan)}" placeholder="Все кланы"></div>${btn('ПОКАЗАТЬ','admin-treasury-filter','small gold')}</div><div class="list">${rows.map(row=>`<div class="row"><div class="row-main"><h3>#${row.id} · Клан #${row.clan_id} · ${row.delta>0?'+':''}${money(row.delta)} крышек</h3><p>Баланс казны: ${money(row.balance_after)} · ${esc(row.created_at)}<br>${esc(row.source_event)}</p></div></div>`).join('')||'<div class="empty">Операций казны пока нет.</div>'}</div><div class="actions">${btn('←','admin-treasury-page','soft',adminTreasuryPage-1,adminTreasuryPage<=1)}<span class="tag">СТР. ${adminTreasuryPage}</span>${btn('→','admin-treasury-page','soft',adminTreasuryPage+1,!adminTreasury?.has_next)}</div>`}
 return `${section('АДМИНСКИЙ ТЕРМИНАЛ','ДОСТУП ПО TELEGRAM ID')}<div class="notice">Операции видны в журнале. Zombo через админку не зачисляется.</div><div class="admin-stats">${stats.map(([label,value])=>`<div class="stat-chip"><small>${esc(label)}</small><strong>${money(value)}</strong></div>`).join('')}</div><div class="actions">${[['players','ИГРОКИ'],['audit','ЖУРНАЛ'],['transactions','ОПЕРАЦИИ'],['ledger','РЕСУРСЫ'],['treasury','КАЗНА'],['economy','ЭКОНОМИКА'],['risk','РИСКИ'],['events','СОБЫТИЯ'],['diagnostics','ДИАГНОСТИКА']].map(([key,label])=>btn(label,'admin-tab',adminTab===key?'gold':'soft',key)).join('')}</div><div class="mt">${content}</div>`}
-function render(){document.title='ZOMBO · AFTER THE FALL';if(!me||!cfg)return;const page=!me.class?classes():({home,map,profile,talents:talentsScreen,more,fight,inventory:inventoryScreen,craft:craftScreen,quests:questsScreen,boss:bossScreen,clan:clanScreen,market:marketScreen,'gear-market':gearMarketScreen,pvp:pvpScreen,raids:raidScreen,expeditions:expeditionScreen,shop:shopScreen,cases:casesScreen,gear:gearScreen,pets:petsScreen,story:storyScreen,stars:starsScreen,leaders:leadersScreen,bestiary:bestiaryScreen,notifications:notificationsScreen,'world-events':worldEventsScreen,encounters:encountersScreen,admin:adminScreen}[screen]||home)();app.innerHTML=`<div class="app-shell">${header()}${screenPath()}<main>${page}</main>${me.class?navBar():''}</div>${modalView()}`;applySearch('inventory');applySearch('craft');syncTelegramBack()}
+function render(){document.title='ZOMBO · AFTER THE FALL';if(!me||!cfg)return;const page=!me.class?classes():({home,map,profile,talents:talentsScreen,more,fight,inventory:inventoryScreen,craft:craftScreen,quests:questsScreen,boss:bossScreen,clan:clanScreen,market:marketScreen,'gear-market':gearMarketScreen,pvp:pvpScreen,raids:raidScreen,expeditions:expeditionScreen,shop:shopScreen,cases:casesScreen,gear:gearScreen,pets:petsScreen,story:storyScreen,stars:starsScreen,leaders:leadersScreen,bestiary:bestiaryScreen,notifications:notificationsScreen,'world-events':worldEventsScreen,encounters:encountersScreen,admin:adminScreen}[screen]||home)();app.innerHTML=`<div class="app-shell">${header()}${screenPath()}<main>${page}</main>${me.class?navBar():''}</div>${modalView()}`;applySearch('inventory');applySearch('craft');applySearch('gear');syncTelegramBack()}
 const forms={
  'clan-create':['ОСНОВАТЬ КЛАН','<label>Название (3–30 символов)</label><input id="input-name" maxlength="30" placeholder="Стальные волки" autocomplete="off"><p>Стоимость: 250 крышек</p>','submit-clan','Создать клан'],
  'clan-donate':['КАЗНА КЛАНА','<label>Количество крышек</label><input id="input-qty" type="number" min="1" value="50">','submit-donate','Внести'],
@@ -419,7 +436,16 @@ async function handle(action,value){
   if(action==='back'){await goBack();return}
   if(action==='nav'){modal=null;await nav(value);return}
   if(action==='leader-sort'){if(navigationBusy)return;const previous=leaderboardSort;leaderboardSort=['level','kills','pvp'].includes(value)?value:'level';navigationBusy=true;try{await fetchScreen();render()}catch(e){leaderboardSort=previous;notice(e.message,true)}finally{navigationBusy=false}return}
-  if(action==='inventory-filter'){inventoryFilter=value;render();return}
+  if(action==='gear-filter'){gearSlotFilter=value;render();return}
+   if(action==='gear-repair-all'){
+     const items=(me.gear||[]).filter(g=>g.equipped&&g.repair_cost);
+     if(!items.length){notice('Экипировка уже в порядке');return}
+     const caps=items.reduce((n,g)=>n+g.repair_cost.caps,0);
+     showModal('ПОЧИНИТЬ ВЕСЬ КОМПЛЕКТ?',`<p>Починить ${items.length} надетых предметов до 100% прочности за ${money(caps)} крышек и материалы?</p><p class="smallnote">Если чего-то не хватит, операция будет отменена целиком.</p>`,'gear-repair-all-confirm','ПОЧИНИТЬ');
+     return;
+   }
+   if(action==='gear-repair-all-confirm'){modal=null;await act('gear/repair-all',null);return}
+   if(action==='inventory-filter'){inventoryFilter=value;render();return}
    if(action==='craft-filter'){craftFilter=value;render();return}
    if(action==='craft-available'){craftReadyOnly=!craftReadyOnly;render();return}
    if(action==='refresh'){await sync();return}
@@ -581,7 +607,17 @@ async function handle(action,value){
     showModal('ВСКРЫТЬ КЕЙС?',`<p>Потратить <b>${esc(item.name)}</b> и получить одну случайную эксклюзивную пушку? Её нельзя скрафтить.</p>`,'case-open-confirm','ОТКРЫТЬ');
     modal.caseKey=value;return;
   }
-  if(action==='case-open-confirm'){const key=modal?.caseKey;modal=null;if(key)await act('cases/open',{key});return}
+  if(action==='case-open-confirm'){
+    const key=modal?.caseKey;modal=null;
+    if(key){
+      const result=await act('cases/open',{key});
+      if(result?.gear){
+        const g=result.gear;
+        showModal('🎉 ТВОЯ НОВАЯ ПУШКА',`<div class="case-prizes"><div class="case-prize"><strong>${esc(g.icon)} ${esc(g.rarity_name)} ${esc(g.name)}</strong><p>⚔ Урон: ${Number(g.power)||0} · Прочность: ${Number(g.durability)||100}/100</p><p>Коллекционная серия · Усиление до +10</p></div></div>`,'close','ЗАБРАТЬ');
+      }
+    }
+    return;
+  }
   if(action==='gear-repair'){
     const g=(me.gear||[]).find(x=>String(x.id)===String(value));if(!g||!g.repair_cost)return;
     const c=g.repair_cost;
@@ -644,17 +680,22 @@ async function handle(action,value){
   if(route[action]){let [url,body]=route[action];let res=await act(url,body);if(res?.battle&&action==='combat-start')actionScreen('fight');if(res?.battle===true&&action==='scavenge')actionScreen('fight');if(res?.finished)actionScreen('map',true);if(res&&action==='travel')actionScreen('map');if(res&&action==='class-confirm'){screen='home';navTrail=[]}if(res){await fetchScreen();render()}return}
 }
 function applySearch(group){
- const q=(group==='inventory'?inventoryQuery:craftQuery).trim().toLowerCase();
+ const q=(group==='inventory'?inventoryQuery:group==='craft'?craftQuery:gearQuery).trim().toLowerCase();
  const rows=app.querySelectorAll(`[data-search-group="${group}"]`);
  let count=0;rows.forEach(row=>{const found=!q||(row.dataset.search||'').includes(q);row.hidden=!found;if(found)count++});
  const empty=app.querySelector(`[data-filter-empty="${group}"]`);if(empty)empty.hidden=count!==0;
 }
 app.addEventListener('input',event=>{
  const group=event.target?.dataset?.listSearch;
- if(!['inventory','craft'].includes(group))return;
+ if(!['inventory','craft','gear'].includes(group))return;
  const query=String(event.target.value||'').slice(0,64);
- if(group==='inventory')inventoryQuery=query;else craftQuery=query;
+ if(group==='inventory')inventoryQuery=query;else if(group==='craft')craftQuery=query;else gearQuery=query;
  applySearch(group);
+});
+app.addEventListener('change',e=>{
+  if(e.target?.id!=='gear-sort')return;
+  gearSort=['equipped','rarity','power','worn'].includes(e.target.value)?e.target.value:'equipped';
+  render();
 });
 app.addEventListener('click',e=>{let b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.classList.contains('modal-bg')&&e.target!==b)return;e.preventDefault();handle(b.dataset.action,b.dataset.value||'').catch(err=>notice(err.message,true))});
 try{tg?.BackButton?.onClick(()=>goBack())}catch(e){}

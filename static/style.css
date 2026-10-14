@@ -348,3 +348,13 @@
 .search-empty{margin-top:12px}
 [hidden]{display:none!important}
 @media(max-width:420px){.item-filters{padding:11px}.filter-pill{padding:7px 9px}}
+
+/* 0.37 — armory readability and one-click safe repairs. */
+.gear-compare{font-weight:800;font-size:11px;margin:8px 0 0;padding:8px 9px;border:1px solid #56725c;border-radius:7px;background:#182b24;color:#90d9a8}
+.gear-compare.bad{border-color:#755852;color:#eba298;background:#312323}
+.gear-repair-batch{border-color:#907a4d;background:linear-gradient(115deg,#27271c,#1b2227);margin-top:10px}
+.gear-repair-batch h3{margin:0 0 5px;font-family:Oswald,sans-serif;font-size:18px}
+.gear-repair-batch .smallnote{line-height:1.6;max-width:420px}
+.gear-repair-batch .btn{flex-shrink:0}
+.gear-collection .gear-card[hidden]{display:none!important}
+@media(max-width:390px){.gear-repair-batch .flex-between{align-items:flex-start;flex-direction:column;gap:10px}.gear-repair-batch .btn{width:100%}}
