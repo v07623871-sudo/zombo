@@ -49,7 +49,7 @@ function art(klass='soldier',zombie=false){
 }
 function uiIcon(name){return icon(name)}
 function icon(name){const paths={book:'<path d="M12 6C9 4 6 4 3 5v15c4-2 7-1 9 1 2-2 5-3 9-1V5c-3-1-6-1-9 1zM12 6v15"/>',bag:'<path d="M5 9h14l1 12H4L5 9zm4 0V6a3 3 0 0 1 6 0v3"/>',hammer:'<path d="m4 20 12-12M12 4l4-2 6 6-2 4zM2 9l5-5"/>',shop:'<path d="M3 10h18v11H3zM2 10l3-7h14l3 7M9 21v-7h6v7"/>',exchange:'<path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4"/>',check:'<path d="m3 12 6 6L21 6"/>',leader:'<path d="M4 7h16v4c0 5-3 7-8 7s-8-2-8-7V7zm8 11v3M7 21h10M4 9H2c0 4 1 6 4 6m14-6h2c0 4-1 6-4 6"/>',home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',map:'<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.5 5-4.5 2 2-4.5z"/>',hero:'<circle cx="12" cy="7" r="4"/><path d="M4 21v-2c0-4 3-6 8-6s8 2 8 6v2"/>',clan:'<circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M2 20v-2c0-4 2-6 6-6s7 2 7 6v2H2Zm14 0h6v-3q0-3-4-4"/>',menu:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',coins:'<circle cx="12" cy="12" r="9"/><path d="M15 8.5H10a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H9m3-11v13"/>',gem:'<path d="m2 9 4-5h12l4 5-10 12zM2 9h20M6 4l6 17L18 4"/>',skull:'<path d="M6 17V9a6 6 0 0 1 12 0v8l-2 2v2h-8v-2z"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><path d="M11 16h2"/>',shield:'<path d="m12 2 8 4v6c0 5-4 9-8 10-4-1-8-5-8-10V6z"/>',swords:'<path d="M4 20 17 7l1-4 3 3-4 1L4 20zm0-4 4 4m12 0L7 7 6 3 3 6l4 1 13 13zm0-4-4 4"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/>'};return `<svg class="ui-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.menu}</svg>`}
-function header(){return `<header class="top"><div class="brand">ZOMBO<span>AFTER THE FALL · 0.39.0</span></div><div class="currencies"><div class="currency">${icon('coins')} <b>${money(me?.caps)}</b></div><div class="currency gem">${icon('gem')} <b>${money(me?.zombo)}</b></div></div></header>`}
+function header(){return `<header class="top"><div class="brand">ZOMBO<span>AFTER THE FALL · 0.40.0</span></div><div class="currencies"><div class="currency">${icon('coins')} <b>${money(me?.caps)}</b></div><div class="currency gem">${icon('gem')} <b>${money(me?.zombo)}</b></div></div></header>`}
 
 function navBar(){let tabs=[['home','home','База'],['map','map','Карта'],['profile','hero','Герой'],['clan','clan','Клан'],['more','menu','Меню']];return `<nav class="bottom-nav">${tabs.map(([id,ico,label])=>`<button data-action="nav" data-value="${id}" class="${(screen===id||(screen==='talents'&&id==='profile')||(['pvp','boss','market','leaders','quests','shop','cases','stars','pets','bestiary','raids','expeditions','gear','story','gear-market','admin','world-events','notifications','encounters'].includes(screen)&&id==='more'))?'active':''}"><span class="nav-ico">${icon(ico)}</span>${label}</button>`).join('')}</nav>`}
 function miniStats(){return `<div class="panel"><div class="flex-between"><div><span class="tag">Здоровье · энергия · опыт</span><h3 style="margin:6px 0;font:600 18px Oswald">${esc(me.name)} <span style="color:var(--gold)">LVL ${me.level}</span></h3></div>${btn('Профиль ↗','nav','ghost','profile')}</div><div class="bar-label"><span>♥ Здоровье</span><em>${me.hp} / ${me.max_hp}</em></div>${bar(me.hp,me.max_hp,'red')}<div class="bar-label"><span>ϟ Энергия</span><em>${me.stamina} / 500</em></div>${bar(me.stamina,500,'blue')}<div class="bar-label"><span>✧ Опыт</span><em>${money(me.xp)} / ${money(me.xp_next)}</em></div>${bar(me.xp,me.xp_next)}</div>`}
@@ -474,7 +474,7 @@ function render(){document.title='ZOMBO · AFTER THE FALL';if(!me||!cfg)return;c
 const forms={
  'clan-create':['ОСНОВАТЬ КЛАН','<label>Название (3–30 символов)</label><input id="input-name" maxlength="30" placeholder="Стальные волки" autocomplete="off"><p>Стоимость: 250 крышек</p>','submit-clan','Создать клан'],
  'clan-donate':['КАЗНА КЛАНА','<label>Количество крышек</label><input id="input-qty" type="number" min="1" value="50">','submit-donate','Внести'],
- 'market-create':['СОЗДАТЬ ЛОТ','<label>Предмет, который отдаёшь</label><select id="input-offer">'+Object.entries(cfg?.items||{}).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('')+'</select><label>Количество</label><input id="input-qty" type="number" min="1" max="100" value="1"><label>Что хочешь взамен</label><select id="input-want">'+Object.entries(cfg?.items||{}).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('')+'</select><label>Сколько хочешь</label><input id="input-wqty" type="number" min="1" max="100" value="1"><p>Предметы резервируются сразу. Сделка — атомарная.</p>','submit-lot','Выставить']
+
 };
 async function handle(action,value){
   if(loading&&action!=='close')return;
@@ -720,7 +720,19 @@ async function handle(action,value){
     return;
   }
   if(action==='class-confirm'){if(!choice)return;await act('class',{key:choice});return}
-  if(forms[action]){let [title,body,submit,label]=action==='market-create'?['СОЗДАТЬ ЛОТ','<label>Предмет, который отдаёшь</label><select id="input-offer">'+Object.entries(cfg.items).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('')+'</select><label>Количество</label><input id="input-qty" type="number" min="1" max="100" value="1"><label>Что хочешь взамен</label><select id="input-want">'+Object.entries(cfg.items).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('')+'</select><label>Сколько хочешь</label><input id="input-wqty" type="number" min="1" max="100" value="1"><p>Предметы резервируются сразу. Сделка — атомарная.</p>','submit-lot','Выставить']:forms[action];showModal(title,body,submit,label);return}
+  if(action==='market-create'){
+   const allowed=(key,meta)=>meta&&meta.type!=='case'&&meta.type!=='chest'&&
+     (!['weapon','armor'].includes(meta.type)||['knife','vest','pistol','rifle'].includes(key));
+   const owned=(me.inventory||[]).filter(item=>!item.equipped&&item.qty>0&&
+     allowed(item.key,cfg.items[item.key]));
+   if(!owned.length){notice('Нет обычных предметов для обмена. Кейсы и уникальные пушки не торгуются здесь.',true);return}
+   const ownOptions=owned.map(item=>`<option value="${esc(item.key)}">${esc(item.icon)} ${esc(item.name)} ×${item.qty}</option>`).join('');
+   const wantOptions=Object.entries(cfg.items).filter(([key,item])=>allowed(key,item))
+     .map(([key,item])=>`<option value="${esc(key)}">${esc(item.icon||'▣')} ${esc(item.name)}</option>`).join('');
+   showModal('СОЗДАТЬ ЛОТ',`<p class="smallnote">Здесь обмениваются обычными припасами. Уникальные пушки продаются на отдельном рынке снаряжения. Платные кейсы и сундуки нельзя обменять.</p><label>Что отдаёшь (из рюкзака)</label><select id="input-offer">${ownOptions}</select><label>Количество</label><input id="input-qty" type="number" min="1" max="100" value="1"><label>Что хочешь получить</label><select id="input-want">${wantOptions}</select><label>Сколько хочешь</label><input id="input-wqty" type="number" min="1" max="100" value="1"><p class="smallnote">Предметы резервируются после подтверждения сделки.</p>`,'submit-lot','ВЫСТАВИТЬ');
+   return;
+ }
+ if(forms[action]){const [title,body,submit,label]=forms[action];showModal(title,body,submit,label);return}
   if(action==='submit-clan'){
     const field=document.getElementById('input-name');
     const name=(field?.value||'').trim();
@@ -740,7 +752,7 @@ async function handle(action,value){
   if(action==='submit-lot'){
     const offer=document.getElementById('input-offer')?.value,qty=Number(document.getElementById('input-qty')?.value);
     const want=document.getElementById('input-want')?.value,want_qty=Number(document.getElementById('input-wqty')?.value);
-    if(!Number.isSafeInteger(qty)||qty<1||!Number.isSafeInteger(want_qty)||want_qty<1||offer===want){notice('Проверь предметы и количество: обменивай разные вещи',true);return}
+    if(!Number.isSafeInteger(qty)||qty<1||qty>100||!Number.isSafeInteger(want_qty)||want_qty<1||want_qty>100||offer===want){notice('Проверь предметы и количество: обменивай разные вещи',true);return}
     const result=await act('market/create',{offer,qty,want,want_qty});
     if(result){modal=null;await nav('market')}
     return
