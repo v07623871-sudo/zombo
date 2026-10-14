@@ -239,7 +239,7 @@ def with_player(request:Request, db: Session):
     return p
 
 @app.get('/api/config')
-def config():return {'enemies':ENEMIES,'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES,'war_timezone':WAR_TIMEZONE,'location_territories':LOCATION_TERRITORY,'pets':PETS,'pet_adoption':{'random':750,'chosen':1250},'cases':{key:{**entry,'shop_price':CASE_SHOP_PRICES.get(key)} for key,entry in CASES.items()}}
+def config():return {'enemies':ENEMIES,'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES,'war_timezone':WAR_TIMEZONE,'location_territories':LOCATION_TERRITORY,'pets':PETS,'pet_adoption':{'random':750,'chosen':1250},'cases':{key:{**entry,'shop_price':CASE_SHOP_PRICES.get(key),'weapons':CASE_POOLS[key]} for key,entry in CASES.items()}}
 
 @app.get('/api/me')
 def me(request:Request,db:Session=Depends(db_session)):
@@ -267,7 +267,7 @@ def ready(p):
 from raids import install_raids, RaidRun, RaidMember
 from expeditions import install_expeditions, ExpeditionRun, ExpeditionMember, settle_player as settle_player_expedition
 from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats, open_case, gear_view, wear_equipped
-from armory_content import CASES, CASE_SHOP_PRICES
+from armory_content import CASES, CASE_POOLS, CASE_SHOP_PRICES
 from story import install_story, StoryProgress, CHAPTERS
 from gear_market import install_gear_market, expire_sales
 from clan_missions import install_clan_missions
