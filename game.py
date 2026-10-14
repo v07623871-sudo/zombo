@@ -922,8 +922,8 @@ def insurance_active(p, *, at=None):
 def death_penalty(db,p):
     """Apply the documented death sink once, within the fight transaction.
 
-    Stackable non-equipped supplies are at risk; bound/equipped weapons and
-    unique gear are protected to avoid deleting paid/rare persistent assets.
+    Ordinary non-equipped supplies are at risk; premium boxes, equipped
+    weapons and unique gear are protected to avoid deleting paid assets.
     """
     protected=insurance_active(p)
     caps_percent=.05 if protected else .20
@@ -933,8 +933,13 @@ def death_penalty(db,p):
     lost_xp=int(max(0,p.xp)*xp_percent)
     p.caps-=lost_caps
     p.xp=max(0,p.xp-lost_xp)
+    # An unopened case/chest was bought for Zombo. Losing it through
+    # ordinary PvE death would erase paid goods before they can be opened.
+    # Unique GearItem is already protected because it is not ItemStack.
+    premium_keys=set(CASES)|set(CHESTS)
     stacks=list(db.scalars(select(ItemStack).where(
-        ItemStack.player_id==p.id,ItemStack.equipped.is_(False))
+        ItemStack.player_id==p.id,ItemStack.equipped.is_(False),
+        ItemStack.item_key.notin_(premium_keys))
         .order_by(ItemStack.item_key,ItemStack.id).with_for_update()))
     at_risk=sum(max(0,s.quantity) for s in stacks)
     left=int(at_risk*items_percent)
