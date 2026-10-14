@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.orm import Session
 from pvp_rating import league, settle_rated_duel, daily_remaining, DAILY_REWARDED_DUELS
+from survival import apply_exertion
 from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, Clan, Territory, tag_resource_operation,
                     MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, StarInvoice, PaymentReview, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
 from game import (ENEMIES, CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
@@ -130,7 +131,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.32.0'
+APP_VERSION='0.33.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -335,7 +336,9 @@ def travel(body:Choice,request:Request,db:Session=Depends(db_session)):
         if pending_encounter(db,p.id):raise ValueError('Сначала заверши случайную встречу в меню')
         if p.level<loc['min_level']:raise ValueError(f'Доступ с {loc["min_level"]} уровня')
         if p.location!=body.key:
-            if body.key!='base':spend_stamina(p,3)
+            if body.key!='base':
+                spend_stamina(p,3)
+                apply_exertion(p,hunger=1,thirst=2)
             p.location=body.key
         return {'message':f'Ты прибыла: {loc["name"]}'}
 
@@ -360,9 +363,9 @@ def scavenge(request:Request,db:Session=Depends(db_session)):
             from gear import roll_drop
             try:roll_drop(db,p.id,loc['threat'])
             except ValueError:pass
-        p.hunger=min(100,p.hunger+2);p.thirst=min(100,p.thirst+3)
+        apply_exertion(p,hunger=2,thirst=3)
         if random.random()<.14:
-            spawn_battle(db,p)
+            spawn_battle(db,p,ambush=True)
             return {'message':f'Найдено: {ITEMS[key]["name"]} ×{qty}. Но шум привлёк заражённого!','battle':True}
         gain_xp(p,12)
         return {'message':f'Найдено: {ITEMS[key]["name"]} ×{qty}. +12 XP','battle':False}
@@ -530,6 +533,7 @@ def boss_hit(request:Request,db:Session=Depends(db_session)):
         if entry and (now()-aware(entry.last_hit)).total_seconds()<30:
             raise ValueError('Повторная атака через 30 секунд')
         spend_stamina(p,5)
+        apply_exertion(p,hunger=3,thirst=4)
         damage=max(1,int(attack_power(db,p)*random.randint(3,5)*(1+talent_bonus(p,'boss'))))
         damage=min(damage,b.hp)
         b.hp-=damage
