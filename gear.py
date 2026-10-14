@@ -371,7 +371,15 @@ def gear_list(db:Session,player_id:int):
 
 
 def gear_stats(db:Session,player_id:int):
-    equipped=db.scalars(select(GearItem).where(GearItem.player_id==player_id,GearItem.equipped==True)).all()
+    # Include dirty equipped items while autoflush=False. Game actions use
+    # the same transaction as equip, so uncommitted items must be effective.
+    equipped=list(db.scalars(select(GearItem).where(
+        GearItem.player_id==player_id,GearItem.equipped.is_(True))))
+    for dirty in db.identity_map.values():
+        if (isinstance(dirty,GearItem) and dirty.player_id==player_id
+                and dirty.equipped and dirty not in equipped):
+            equipped.append(dirty)
+    equipped=[item for item in equipped if item.equipped]
     power=max((gear_values(g)['power'] for g in equipped if BASE_GEAR[g.base_key]['slot']=='weapon'),default=0)
     defense=max((gear_values(g)['defense'] for g in equipped if BASE_GEAR[g.base_key]['slot']=='armor'),default=0)
     return {'power':power,'defense':defense}
