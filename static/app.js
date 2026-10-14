@@ -584,6 +584,38 @@ async function handle(action,value){
   if(action==='admin-open'){adminDetail=await api('admin/players/'+Number(value));render();return}
   if(action==='admin-close'){adminDetail=null;render();return}
   if(action==='admin-status'){if(!adminDetail)return;let [field,v]=value.split(':');showModal('ИЗМЕНИТЬ СТАТУС?',`<p>${esc(adminDetail.name)} · #${adminDetail.id}: ${field==='banned'?'бан':'заморозка'} = ${v==='1'?'да':'нет'}</p><label>Причина (минимум 5 символов)</label><textarea id="admin-reason" maxlength="300" rows="3"></textarea>`,'admin-status-confirm','ПОДТВЕРДИТЬ');modal.payload={field,value:v==='1',request_id:crypto.randomUUID()};return}
+  if(action==='admin-grant'){
+   if(!adminDetail)return;
+   if(!adminGrantCatalog){notice('Каталог ещё загружается',true);return}
+   const rarities=Object.entries(adminGrantCatalog.rarities||{});
+   showModal('ВЫДАЧА ИГРОВОГО ИМУЩЕСТВА',`<p><strong>${esc(adminDetail.name)} · #${adminDetail.id}</strong></p><p class="smallnote">Материалы, расходники, кейсы, сундуки, редкая экипировка, питомцы, VIP и 💎 Zombo. Все выдачи фиксируются в журнале. Ручное Zombo не является платежом Stars.</p><label>Категория выдачи</label><select id="admin-gift-kind"><option value="item">📦 Все предметы / сундуки / кейсы</option><option value="currency">🪙 Крышки / XP / Zombo</option><option value="gear">⚔ Оружие / броня</option><option value="pet">🐺 Питомец</option><option value="premium">👑 VIP / буст / страховка</option></select><label>Поиск по каталогу</label><input id="admin-gift-search" placeholder="Название или ключ" maxlength="80"><span id="admin-gift-count" class="smallnote"></span><label>Выбери награду</label><select id="admin-gift-key"></select><div id="admin-gift-amount-row"><label>Количество (для валюты — сколько начислить)</label><input id="admin-gift-amount" type="number" min="1" max="1000000" step="1" value="1"></div><div id="admin-gift-rarity-row" hidden><label>Редкость экипировки</label><select id="admin-gift-rarity">${rarities.map(([key,name])=>`<option value="${esc(key)}">${esc(name)}</option>`).join('')}</select></div><div id="admin-gift-level-row" hidden><label>Уровень пушки / питомца</label><input id="admin-gift-level" type="number" min="0" max="10" value="0"></div><label>Причина выдачи (от 5 символов)</label><textarea id="admin-gift-reason" rows="3" maxlength="300" placeholder="Приз, компенсация, тест ..."></textarea>`,'admin-grant-confirm','ВЫДАТЬ');
+   modal.payload={request_id:crypto.randomUUID(),pid:adminDetail.id};
+   fillAdminGrantItems('item');return;
+  }
+  if(action==='admin-grant-confirm'){
+    const payload=modal?.payload;if(!payload||!adminDetail)return;
+    const kind=document.getElementById('admin-gift-kind')?.value;
+    const key=document.getElementById('admin-gift-key')?.value;
+    const amount=Number(document.getElementById('admin-gift-amount')?.value||1);
+    const level=Number(document.getElementById('admin-gift-level')?.value||0);
+    const rarity=document.getElementById('admin-gift-rarity')?.value||'common';
+    const reason=document.getElementById('admin-gift-reason')?.value?.trim()||'';
+    if(!key){notice('Выбери награду из каталога',true);return}
+    if(reason.length<5){notice('Укажи причину длиной от 5 символов',true);return}
+    if(!Number.isInteger(amount)||amount<1||!Number.isInteger(level)||level<0||level>10){
+      notice('Проверь количество и уровень',true);return;
+    }
+    loading=true;
+    try{
+      const result=await api('admin/players/'+payload.pid+'/grant','POST',{
+        request_id:payload.request_id,kind,key,amount:kind==='pet'||kind==='premium'?1:amount,
+        rarity,level,reason
+      });
+      notice(result.message);
+      modal=null;await sync();
+    }catch(e){notice(e.message,true)}finally{loading=false}
+    return;
+  }
   if(action==='admin-resource'){if(!adminDetail)return;showModal('ИЗМЕНИТЬ РЕСУРСЫ?',`<p>${esc(adminDetail.name)} · #${adminDetail.id}. Zombo не меняется через админку.</p><label>Ресурс</label><select id="admin-field"><option value="caps">Крышки</option><option value="xp">XP (только выдача)</option><option value="material">Материал</option></select><label>Ключ материала (для материалов)</label><select id="admin-item">${Object.entries(cfg.items).filter(([,x])=>x.type==='material').map(([k,x])=>`<option value="${k}">${esc(x.name)}</option>`).join('')}</select><label>Количество (минус для списания)</label><input id="admin-amount" type="number" min="-100000" max="100000" step="1"><label>Причина</label><textarea id="admin-reason" maxlength="300" rows="3"></textarea>`,'admin-resource-confirm','ПРИМЕНИТЬ');modal.payload={request_id:crypto.randomUUID()};return}
   if(action==='admin-status-confirm'||action==='admin-resource-confirm'){
     const reason=document.getElementById('admin-reason')?.value?.trim()||'';if(reason.length<5){notice('Укажи причину не короче 5 символов',true);return}
@@ -712,6 +744,11 @@ function applySearch(group){
  const empty=app.querySelector(`[data-filter-empty="${group}"]`);if(empty)empty.hidden=count!==0;
 }
 app.addEventListener('input',event=>{
+ if(event.target?.id==='admin-gift-search'){
+   fillAdminGrantItems(document.getElementById('admin-gift-kind')?.value||'item',event.target.value);
+   return;
+ }
+
  const group=event.target?.dataset?.listSearch;
  if(!['inventory','craft','gear'].includes(group))return;
  const query=String(event.target.value||'').slice(0,64);
@@ -719,6 +756,11 @@ app.addEventListener('input',event=>{
  applySearch(group);
 });
 app.addEventListener('change',e=>{
+ if(e.target?.id==='admin-gift-kind'){
+   const input=document.getElementById('admin-gift-search');if(input)input.value='';
+   fillAdminGrantItems(e.target.value);return;
+ }
+
   if(e.target?.id!=='gear-sort')return;
   gearSort=['equipped','rarity','power','worn'].includes(e.target.value)?e.target.value:'equipped';
   render();
