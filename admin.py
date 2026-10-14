@@ -1,5 +1,6 @@
 """Authenticated admin API. Every mutation is audited in the same DB transaction."""
 from uuid import UUID
+from typing import Literal
 from collections import defaultdict
 from datetime import timedelta
 from io import StringIO
@@ -17,7 +18,8 @@ from raids import RaidRun, RaidMember
 from expeditions import ExpeditionRun
 from notifications import NotificationOutbox, CATEGORIES
 from story import StoryProgress
-from game import ITEMS, gain_xp, give_item, item_count, take_item
+from game import ITEMS, gain_xp, give_item, item_count, take_item, pet_status
+from admin_grants import gift_catalog, grant_to_player
 
 
 class AdminAudit(Base):
@@ -41,8 +43,18 @@ class StatusChange(BaseModel):
     request_id: UUID
 
 
+class GrantChange(BaseModel):
+    kind: Literal['currency','item','gear','pet','premium']
+    key: str = Field(min_length=1, max_length=55)
+    amount: int = Field(default=1, ge=1, le=1000000)
+    rarity: str = 'common'
+    level: int = Field(default=0, ge=0, le=10)
+    reason: str = Field(min_length=5, max_length=300)
+    request_id: UUID
+
+
 class ResourceChange(BaseModel):
-    field: str = Field(pattern=r'^(caps|xp|material)$')
+    field: Literal['caps','xp','material']
     item_key: str | None = Field(default=None, max_length=55)
     amount: int = Field(ge=-100000, le=100000)
     reason: str = Field(min_length=5, max_length=300)
@@ -92,6 +104,33 @@ def install_admin(app, identify, admin_ids):
     @router.get('/access')
     def access(request: Request, db: Session = Depends(session)):
         return {'admin': True, 'id': actor(request, db).id}
+
+    @router.get('/grant-catalog')
+    def admin_catalog(request: Request, db: Session = Depends(session)):
+        actor(request, db)
+        return gift_catalog()
+
+    @router.post('/players/{pid}/grant')
+    def grant_everything(pid: int, body: GrantChange, request: Request,
+                         db: Session = Depends(session)):
+        """Issue every gameplay asset; audit and grant commit atomically."""
+        with db.begin():
+            admin=actor(request,db)
+            if len(body.reason.strip())<5:
+                raise HTTPException(422,'Укажи причину выдачи')
+            player=target(db,pid)
+            previous=prior(db,body.request_id)
+            if previous:return previous
+            tag_resource_operation(db,f'admin-grant:{body.request_id}',stable=True)
+            result=grant_to_player(db,player,kind=body.kind,key=body.key,
+                                   amount=body.amount,rarity=body.rarity,
+                                   level=body.level)
+            audit=log_change(db,body.request_id,admin,player,'grant',
+                             result['field'],result['before'],result['after'],
+                             body.reason)
+            audit['message']=f'Выдано игроку #{pid}: {body.key} ×{body.amount}'
+            if 'gear_ids' in result:audit['gear_ids']=result['gear_ids']
+            return audit
 
     @router.get('/summary')
     def summary(request: Request, db: Session = Depends(session)):
@@ -198,6 +237,8 @@ def install_admin(app, identify, admin_ids):
                 'karma': p.karma, 'banned': p.banned, 'frozen': p.frozen,
                 'clan': clan.name if clan else None, 'location': p.location,
                 'story_chapter': story.chapter if story else 0,
+                 'pet': pet_status(p),
+                 'vip_until': p.vip_until.isoformat() if p.vip_until else None,
                 'gear': [gear_view(item) for item in gear],
                 'inventory': [{'key': i.item_key, 'quantity': i.quantity, 'equipped': i.equipped} for i in stacks]}
 
