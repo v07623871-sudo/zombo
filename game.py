@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from models import now, Player, ItemStack, Battle, WorldBoss, BossHit, QuestProgress, Territory
 from armory_content import NEW_ITEM_DESCRIPTIONS, NEW_RECIPES, CASES
 from premium_chests import EXTRA_SUPPLIES, CHESTS
+from legendary_ammo import AMMO_KEY, AMMO_ITEM, AMMO_RECIPE, AMMO_SHOP_PRICE, spend_legendary_round, ammo_message
 
 CLASSES = {
     'medic': {'name':'Врач','icon':'✚','subtitle':'Медик отряда','color':'#6dc7ba','bonus':'Лечение ×2 · регенерация 5% HP/ход','power':1.00,'healing':2.0,'loot':1.0,'crit':0.05,'hp':110},
@@ -391,6 +392,7 @@ CONSUMABLE_EFFECTS = {
   }
 }
 
+ITEMS[AMMO_KEY]=AMMO_ITEM
 ITEMS.update(NEW_ITEM_DESCRIPTIONS)
 ITEMS.update({key:{'name':data['name'],'icon':data['icon'],'type':'case',
                    'desc':data['desc']} for key,data in CASES.items()})
@@ -707,6 +709,8 @@ RECIPES.update({
   }
 })
 
+RECIPES[AMMO_KEY]=AMMO_RECIPE
+SHOP_PRICES[AMMO_KEY]=AMMO_SHOP_PRICE
 RECIPES.update(NEW_RECIPES)
 RECIPES.update({key:data['recipe'] for key,data in EXTRA_SUPPLIES.items()})
 SHOP_PRICES.update({key:data['caps'] for key,data in EXTRA_SUPPLIES.items() if 'caps' in data})
@@ -1039,11 +1043,13 @@ def battle_view(b):
             'elite_warning':(enemy['skill']+' + ядовитый укус' if enemy['trait'] not in ('none','armor') else 'Ядовитый укус') if elite=='venom' and (b.turn+1)%3==0 else None,
             'tactics':ENEMY_TACTICS[key],'ability_cooldowns':{key:max(0,3-(b.turn-turn)) for key,turn in used.items()}}
 
-def attack_power(db,p):
+def attack_power(db,p,*,ammo_status='normal'):
     weapon=db.scalar(select(ItemStack).where(ItemStack.player_id==p.id,ItemStack.equipped==True,ItemStack.item_key.in_(['knife','pistol','rifle'])))
     w=ITEMS[weapon.item_key]['power'] if weapon else 3
     from gear import gear_stats
-    w=gear_stats(db,p.id)['power'] or w
+    # An empty legendary gun falls back to the survivor's baseline melee hit.
+    # Only attacks that actually spend a round gain the legendary gun bonus.
+    w=(3 if ammo_status=='empty' else (gear_stats(db,p.id)['power'] or w))
     cls=CLASSES.get(p.hero_class,CLASSES['soldier'])
     return max(1,int((7+p.level*2+p.stats.get('strength',0)*2+w)*cls['power']*(1+talent_bonus(p,'power')+pet_bonus(p,'power'))))
 
@@ -1099,7 +1105,8 @@ def combat_round(db,p,b,action,zone='body'):
                 extra_dodge=.5+rank*.08
                 msg='◈ Дымовая завеса! '
         else:msg=''
-        d=max(1,int(attack_power(db,p)*damage_multiplier*random.uniform(.8,1.2)))
+        ammo_status=spend_legendary_round(db,p.id)
+        d=max(1,int(attack_power(db,p,ammo_status=ammo_status)*damage_multiplier*random.uniform(.8,1.2)))
         if random.random()>min(.99,accuracy):d=0
         crit=random.random()<min(.75,CLASSES[p.hero_class]['crit']+p.stats.get('agility',0)*.004+p.stats.get('luck',0)*.003+talent_bonus(p,'crit')+pet_bonus(p,'crit')+(0.13 if action=='skill' and p.hero_class=='assassin' else 0))
         if crit:d*=2
@@ -1116,7 +1123,7 @@ def combat_round(db,p,b,action,zone='body'):
             leech=max(1,int(d*talent_bonus(p,'lifesteal')))
             p.hp=min(max_hp(p),p.hp+leech)
         if action=='attack':msg+=f"Удар {dict(head='в голову',body='в тело',legs='по ногам')[zone]}"
-        msg+=f": {d} урона"+(' · КРИТ!' if crit and d else '')
+        msg+=f": {d} урона"+(' · КРИТ!' if crit and d else '')+ammo_message(ammo_status)
     if b.enemy_hp<=0:
         pet_victory(p)
         new_pet=pet_try_find(p)
@@ -1155,6 +1162,11 @@ def combat_round(db,p,b,action,zone='body'):
             pool=['wood','cloth','metal','food','water','medkit','wire']
             key=random.choice(pool);give_item(db,p.id,key);loot.append(key)
             progress(db,p.id,'scavenge')
+        # High-threat areas provide a modest free source of legendary ammo.
+        if threat_level := LOCATIONS.get(p.location,{}).get('threat',1):
+            if threat_level>=4 and random.random()<(.07 if threat_level==4 else .12):
+                give_item(db,p.id,AMMO_KEY,2)
+                loot.extend([AMMO_KEY,AMMO_KEY])
         # Premium cases/chests cannot be earned through PvE.
         # Give independent, low-cost supplies instead so loot stays lively.
         bonus_threat=LOCATIONS.get(p.location,{}).get('threat',1)
