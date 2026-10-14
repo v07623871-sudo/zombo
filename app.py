@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.orm import Session
+from pvp_rating import league, settle_rated_duel, daily_remaining, DAILY_REWARDED_DUELS
 from models import (Base, engine, SessionLocal, now, Player, ItemStack, Battle, Clan, Territory, tag_resource_operation,
                     MarketLot, WorldBoss, BossHit, QuestProgress, PvPMatch, Payment, StarInvoice, PaymentReview, ClanOfficer, TerritoryTax, TerritoryWar, WarFighter)
 from game import (ENEMIES, CLASSES, SKILLS, SKILL_TREES, talent_node, talent_rank, talent_bonus, talent_reset_cost, migrate_talents, STATS, ITEMS, LOCATIONS, RECIPES, QUESTS, TERRITORIES,
@@ -129,7 +130,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.31.0'
+APP_VERSION='0.32.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -487,7 +488,8 @@ def leaderboard_players(db:Session,sort:str='level',limit:int=30):
 @app.get('/api/leaderboard')
 def leaderboard(sort:str='level',db:Session=Depends(db_session)):
     return [{'id':x.id,'name':x.name,'level':x.level,'class':x.hero_class,
-             'rating':x.rating,'kills':x.kills,'pvp_wins':x.pvp_wins}
+             'rating':x.rating,'league':league(x.rating)['name'],
+             'kills':x.kills,'pvp_wins':x.pvp_wins}
             for x in leaderboard_players(db,sort)]
 
 @app.get('/api/boss')
@@ -767,7 +769,11 @@ def pvp_list(request:Request,db:Session=Depends(db_session)):
         match=db.scalar(select(PvPMatch).where(or_(PvPMatch.challenger_id==p.id,PvPMatch.defender_id==p.id),PvPMatch.state.in_(['pending','active'])).order_by(PvPMatch.id.desc()))
         top=db.scalars(select(Player).where(Player.id!=p.id,Player.hero_class.isnot(None),
                            Player.banned.is_(False),Player.frozen.is_(False)).order_by(Player.rating.desc()).limit(20)).all()
-        return {'match':pvp_view(db,match) if match else None,'players':[{'id':x.id,'name':x.name,'level':x.level,'rating':x.rating} for x in top]}
+        return {'match':pvp_view(db,match) if match else None,
+            'league':league(p.rating),'remaining_rewarded':daily_remaining(p,now()),
+            'daily_cap':DAILY_REWARDED_DUELS,
+            'players':[{'id':x.id,'name':x.name,'level':x.level,
+                        'rating':x.rating,'league':league(x.rating)['name']} for x in top]}
 
 def pvp_view(db,m):
     if not m:return None
@@ -895,11 +901,16 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
                 if not dead:return {'message':message}
                 winner_id=p.id
         winner=db.get(Player,winner_id);loser=db.get(Player,m.challenger_id if winner_id==m.defender_id else m.defender_id)
-        winner.rating+=25;loser.rating=max(0,loser.rating-20);winner.pvp_wins+=1
-        winner.caps+=35;gain_xp(winner,80);progress(db,winner.id,'pvp')
+        rated,delta=settle_rated_duel(winner,loser,now())
+        winner.pvp_wins+=1
+        if rated:
+            winner.caps+=35;gain_xp(winner,80);progress(db,winner.id,'pvp')
         m.state='finished';m.current_id=None;m.updated_at=now()
         m.log=[*(m.log or []),f'{winner.name} побеждает в дуэли!'][-12:]
-        return {'message':f'Дуэль завершена. Победитель: {winner.name}'}
+        reward=(' +35 крышек, +80 XP, +'+str(delta)+' Elo'
+                if rated else ' Без повторных наград и Elo: лимит дня или повторный соперник.')
+        return {'message':f'Дуэль завершена. Победитель: {winner.name}. '+reward,
+                'rated':rated,'elo_delta':delta,'league':league(winner.rating)['name']}
 
 SHOP={key:{'caps':price} for key,price in SHOP_PRICES.items()}
 
