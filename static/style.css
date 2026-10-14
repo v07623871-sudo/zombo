@@ -365,3 +365,21 @@
 .inventory-unique .row-main p{line-height:1.5;color:#cbbf9f}
 .inventory-unique .badge{font-size:10px;border:1px solid #94744c;background:#352a1d}
 @media(max-width:380px){.inventory-unique .row-main p{font-size:10px}.inventory-unique .btn{font-size:9px}}
+
+/* v0.41 — merchant coin is pure CSS, never a fragile platform emoji. */
+.merchant-buy{min-width:78px;border-radius:12px!important;padding:9px 12px!important;white-space:nowrap;flex-shrink:0}
+.merchant-price{display:inline-flex;align-items:center;justify-content:center;gap:8px;color:#28200e;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+.merchant-coin{position:relative;width:21px;height:21px;border-radius:50%;display:inline-grid;place-items:center;flex-shrink:0;
+  color:#6e490e;font:800 12px Arial,sans-serif;
+  background:radial-gradient(circle at 28% 26%,#fff4b1 0%,#f5cb61 35%,#c58e2c 78%,#916019 100%);
+  border:2px solid #956522;
+  box-shadow:inset 0 0 0 2px #ffdf7ba6,inset 0 1px 2px #ffedb9,0 1px 3px #47301299}
+.merchant-amount{font:800 14px Manrope,Arial,sans-serif}
+.gear-ammo{padding:8px 10px;border-radius:8px;border:1px solid #977044aa;background:#35281970;color:#f5d18c;font-size:11px;line-height:1.55}
+.gear-ammo b{color:#ffdf89}
+.fight-ammo{margin:14px 0;padding:12px 13px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:5px 12px;
+  border:1px solid #99804b;background:linear-gradient(120deg,#30291c,#202824);border-radius:10px}
+.fight-ammo span{font-size:10px;letter-spacing:.5px;color:#f2d497;font-weight:800}
+.fight-ammo strong{font-size:14px;color:#f8df92}
+.fight-ammo small{width:100%;color:#b9b9ac}
+.fight-ammo.empty{border-color:#aa6a53;background:#39251d}

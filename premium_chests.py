@@ -132,6 +132,7 @@ def open_paid_chest(db,player_id,key,rng=None):
     import random
     from armory_content import CASE_POOLS
     from gear import create_gear, gear_view
+    from legendary_ammo import AMMO_KEY, STARTER_LEGENDARY_ROUNDS, is_firearm
     from game import give_item, take_item
     if key not in CHESTS:raise ValueError('Неизвестный премиум-сундук')
     rng=rng or random
@@ -145,8 +146,12 @@ def open_paid_chest(db,player_id,key,rng=None):
     gear=create_gear(db,player_id,base,rarity,'premium_chest')
     rewards=[{'kind':'gear','key':base,'qty':1,'name':gear_view(gear)['name'],
               'rarity':rarity,'gear':gear_view(gear)}]
-    for pool in cfg['supplies']:
+    for index,pool in enumerate(cfg['supplies']):
         item,qty=rng.choice(pool)
+        if (rarity=='legendary' and is_firearm(base) and
+                index==len(cfg['supplies'])-1):
+            # Guaranteed matching ammo within the advertised five reward slots.
+            item,qty=AMMO_KEY,STARTER_LEGENDARY_ROUNDS
         give_item(db,player_id,item,qty)
         rewards.append({'kind':'item','key':item,'qty':qty})
     take_item(db,player_id,key,1)

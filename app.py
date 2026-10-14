@@ -130,7 +130,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.40.0'
+APP_VERSION='0.41.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -269,6 +269,7 @@ def ready(p):
 from raids import install_raids, RaidRun, RaidMember
 from expeditions import install_expeditions, ExpeditionRun, ExpeditionMember, settle_player as settle_player_expedition
 from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats, open_case, gear_view, wear_equipped
+from legendary_ammo import spend_legendary_round, ammo_message
 from armory_content import CASES, CASE_POOLS
 from premium_chests import CHESTS, GEM_CASE_PRICES, chest_catalog, open_paid_chest
 from story import install_story, StoryProgress, CHAPTERS
@@ -455,7 +456,8 @@ def case_open(body:Choice,request:Request,db:Session=Depends(db_session)):
             raise ValueError('Нельзя вскрывать кейс в бою')
         reward=open_case(db,p.id,body.key)
         view=gear_view(reward)
-        return {'message':f'Кейс вскрыт! {view["rarity_name"]} {view["name"]}.',
+        return {'message':f'Кейс вскрыт! {view["rarity_name"]} {view["name"]}.'+
+                (' ✧ Выданы 12 легендарных патронов.' if view['ammo_key'] else ''),
                 'gear':view}
 
 @app.post('/api/chests/open')
@@ -556,7 +558,8 @@ def boss_hit(request:Request,db:Session=Depends(db_session)):
         if entry and (now()-aware(entry.last_hit)).total_seconds()<30:
             raise ValueError('Повторная атака через 30 секунд')
         spend_stamina(p,5)
-        damage=max(1,int(attack_power(db,p)*random.randint(3,5)*(1+talent_bonus(p,'boss'))))
+        ammo_status=spend_legendary_round(db,p.id)
+        damage=max(1,int(attack_power(db,p,ammo_status=ammo_status)*random.randint(3,5)*(1+talent_bonus(p,'boss'))))
         damage=min(damage,b.hp)
         b.hp-=damage
         wear_equipped(db,p.id,'weapon',1)
@@ -915,9 +918,10 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
                         strength={'attack':1.0,'crit':1.75,'feint':.7}[body.action]
                         # Critical strike is stronger but may miss; a feint
                         # ignores the opponent's armor/defense at reduced power.
+                        ammo_status=spend_legendary_round(db,p.id)
                         hit=body.action!='crit' or random.random()<.60+min(.25,talent_bonus(p,'crit'))
                         if hit:
-                            damage=max(1,int(attack_power(db,p)*random.uniform(.55,1.0)*strength))
+                            damage=max(1,int(attack_power(db,p,ammo_status=ammo_status)*random.uniform(.55,1.0)*strength))
                             if body.action!='feint':
                                 armor=gear_stats(db,target.id)['defense']
                                 damage=max(1,damage-min(armor,int(damage*.65)))
@@ -932,7 +936,7 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
                                                          +talent_bonus(target,'mitigation')))))
                     if body.action!='defend':wear_equipped(db,p.id,'weapon',1)
                     message=f'{p.name}: '+({'attack':'атака','crit':'критическая атака',
-                        'feint':'финт','defend':'защита'}[body.action])+f' — {damage} урона'
+                        'feint':'финт','defend':'защита'}[body.action])+f' — {damage} урона'+(ammo_message(ammo_status) if body.action!='defend' else '')
                 if damage:
                     wear_equipped(db,target.id,'armor',1)
                     if p.id==m.challenger_id:

@@ -21,7 +21,7 @@ def test_all_forty_recipes_use_real_inputs_and_usable_outputs():
         assert isinstance(recipe['qty'],int) and recipe['qty']>0
         assert recipe['cost'] and all(k in ITEMS and isinstance(n,int) and n>0
                                       for k,n in recipe['cost'].items()),key
-        assert output in BASE_GEAR or ITEMS[output]['type']=='consumable'
+        assert output in BASE_GEAR or ITEMS[output]['type'] in ('consumable','material')
     assert 'rubber' not in scavenge_pool('forest')
     assert 'rubber' in scavenge_pool('factory')
     assert 'wire' in scavenge_pool('city')
