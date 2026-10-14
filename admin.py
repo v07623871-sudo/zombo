@@ -17,7 +17,7 @@ from raids import RaidRun, RaidMember
 from expeditions import ExpeditionRun
 from notifications import NotificationOutbox, CATEGORIES
 from story import StoryProgress
-from game import ITEMS, gain_xp, give_item, item_count, take_item
+from game import ITEMS, gain_xp, give_item, item_count, take_item, pet_status
 from admin_grants import gift_catalog, grant_to_player
 
 
@@ -227,6 +227,8 @@ def install_admin(app, identify, admin_ids):
                 'karma': p.karma, 'banned': p.banned, 'frozen': p.frozen,
                 'clan': clan.name if clan else None, 'location': p.location,
                 'story_chapter': story.chapter if story else 0,
+                 'pet': pet_status(p),
+                 'vip_until': p.vip_until.isoformat() if p.vip_until else None,
                 'gear': [gear_view(item) for item in gear],
                 'inventory': [{'key': i.item_key, 'quantity': i.quantity, 'equipped': i.equipped} for i in stacks]}
 
