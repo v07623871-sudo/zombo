@@ -545,6 +545,7 @@ def boss_hit(request:Request,db:Session=Depends(db_session)):
         damage=max(1,int(attack_power(db,p)*random.randint(3,5)*(1+talent_bonus(p,'boss'))))
         damage=min(damage,b.hp)
         b.hp-=damage
+        wear_equipped(db,p.id,'weapon',1)
         if entry:entry.damage+=damage;entry.last_hit=now()
         else:db.add(BossHit(player_id=p.id,spawn_at=cycle,damage=damage))
         turn=next_turn(p,cycle)
@@ -900,9 +901,11 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
                             if damage:
                                 damage=max(1,int(damage*(1-min(.65,CLASSES[target.hero_class].get('mitigation',0)
                                                          +talent_bonus(target,'mitigation')))))
+                    if body.action!='defend':wear_equipped(db,p.id,'weapon',1)
                     message=f'{p.name}: '+({'attack':'атака','crit':'критическая атака',
                         'feint':'финт','defend':'защита'}[body.action])+f' — {damage} урона'
                 if damage:
+                    wear_equipped(db,target.id,'armor',1)
                     if p.id==m.challenger_id:
                         m.hp_b=max(0,m.hp_b-damage);dead=m.hp_b==0
                     else:
