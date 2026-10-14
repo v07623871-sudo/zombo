@@ -423,7 +423,7 @@ if(adminTab==='ledger'){const rows=adminLedger?.items||[];content=`<div class="p
 if(adminTab==='diagnostics'){const o=adminOperations||{},n=adminNotifications||{};const metrics=[['Рейды: набор',o.raids_lobby],['Рейды: в бою',o.raids_active],['Рейды: просрочены',o.raids_overdue],['Экспедиции: активны',o.expeditions_active],['Экспедиции: просрочены',o.expeditions_overdue],['Очередь: ожидают',o.notifications_pending],['Очередь: готовы',o.notifications_due],['Отправляются',o.notifications_sending],['Зависшие аренды',o.notifications_stuck],['Ошибки за 24 ч',o.notifications_failed_24h]];content=`<div class="panel"><h3>СОСТОЯНИЕ ОПЕРАЦИЙ</h3><p class="smallnote">Проверено: ${esc(o.checked_at||'—')}. Старейшее ожидающее сообщение: ${esc(o.oldest_due_at||'нет')}.</p><div class="admin-stats">${metrics.map(([label,value])=>`<div class="stat-chip"><small>${esc(label)}</small><strong>${money(value||0)}</strong></div>`).join('')}</div></div>${section('ОЧЕРЕДЬ TELEGRAM','БЕЗ ТЕКСТОВ СООБЩЕНИЙ')}<div class="panel admin-filters"><div><label>Статус</label><select id="admin-notice-status">${[['','Все'],['pending','Ожидает'],['sending','Отправляется'],['sent','Отправлено'],['skipped','Пропущено'],['failed','Ошибка']].map(([key,label])=>`<option value="${key}" ${adminNoticeStatus===key?'selected':''}>${label}</option>`).join('')}</select></div><div><label>Категория</label><select id="admin-notice-category">${[['','Все'],['expeditions','Экспедиции'],['market','Рынок'],['raids','Рейды'],['clans','Кланы']].map(([key,label])=>`<option value="${key}" ${adminNoticeCategory===key?'selected':''}>${label}</option>`).join('')}</select></div>${btn('ПОКАЗАТЬ','admin-notice-filter','small gold')}</div><div class="list">${(n.items||[]).map(row=>`<div class="row"><div class="row-main"><h3>#${row.id} · ${esc(row.category)} · ${esc(row.status)}</h3><p>Игрок #${row.player_id} · ${esc(row.kind)} · попыток ${row.attempts}<br>Запланировано: ${esc(row.scheduled_at)}${row.last_error?' · '+esc(row.last_error):''}</p></div></div>`).join('')||'<div class="empty">Событий с такими фильтрами нет.</div>'}</div><div class="actions">${btn('←','admin-notice-page','soft',adminNoticePage-1,adminNoticePage<=1)}<span class="tag">СТР. ${adminNoticePage}</span>${btn('→','admin-notice-page','soft',adminNoticePage+1,!n.has_next)}</div>`}
 if(adminTab==='treasury'){const rows=adminTreasury?.items||[];content=`<div class="panel admin-filters"><div><label>ID клана</label><input id="admin-treasury-clan" type="number" min="1" value="${esc(adminTreasuryClan)}" placeholder="Все кланы"></div>${btn('ПОКАЗАТЬ','admin-treasury-filter','small gold')}</div><div class="list">${rows.map(row=>`<div class="row"><div class="row-main"><h3>#${row.id} · Клан #${row.clan_id} · ${row.delta>0?'+':''}${money(row.delta)} крышек</h3><p>Баланс казны: ${money(row.balance_after)} · ${esc(row.created_at)}<br>${esc(row.source_event)}</p></div></div>`).join('')||'<div class="empty">Операций казны пока нет.</div>'}</div><div class="actions">${btn('←','admin-treasury-page','soft',adminTreasuryPage-1,adminTreasuryPage<=1)}<span class="tag">СТР. ${adminTreasuryPage}</span>${btn('→','admin-treasury-page','soft',adminTreasuryPage+1,!adminTreasury?.has_next)}</div>`}
 return `${section('АДМИНСКИЙ ТЕРМИНАЛ','ДОСТУП ПО TELEGRAM ID')}<div class="notice">Операции видны в журнале. Zombo через админку не зачисляется.</div><div class="admin-stats">${stats.map(([label,value])=>`<div class="stat-chip"><small>${esc(label)}</small><strong>${money(value)}</strong></div>`).join('')}</div><div class="actions">${[['players','ИГРОКИ'],['audit','ЖУРНАЛ'],['transactions','ОПЕРАЦИИ'],['ledger','РЕСУРСЫ'],['treasury','КАЗНА'],['economy','ЭКОНОМИКА'],['risk','РИСКИ'],['events','СОБЫТИЯ'],['diagnostics','ДИАГНОСТИКА']].map(([key,label])=>btn(label,'admin-tab',adminTab===key?'gold':'soft',key)).join('')}</div><div class="mt">${content}</div>`}
-function render(){document.title='ZOMBO · AFTER THE FALL';if(!me||!cfg)return;const page=!me.class?classes():({home,map,profile,talents:talentsScreen,more,fight,inventory:inventoryScreen,craft:craftScreen,quests:questsScreen,boss:bossScreen,clan:clanScreen,market:marketScreen,'gear-market':gearMarketScreen,pvp:pvpScreen,raids:raidScreen,expeditions:expeditionScreen,shop:shopScreen,cases:casesScreen,gear:gearScreen,pets:petsScreen,story:storyScreen,stars:starsScreen,leaders:leadersScreen,bestiary:bestiaryScreen,notifications:notificationsScreen,'world-events':worldEventsScreen,encounters:encountersScreen,admin:adminScreen}[screen]||home)();app.innerHTML=`<div class="app-shell">${header()}${screenPath()}<main>${page}</main>${me.class?navBar():''}</div>${modalView()}`;applySearch('inventory');applySearch('craft');syncTelegramBack()}
+function render(){document.title='ZOMBO · AFTER THE FALL';if(!me||!cfg)return;const page=!me.class?classes():({home,map,profile,talents:talentsScreen,more,fight,inventory:inventoryScreen,craft:craftScreen,quests:questsScreen,boss:bossScreen,clan:clanScreen,market:marketScreen,'gear-market':gearMarketScreen,pvp:pvpScreen,raids:raidScreen,expeditions:expeditionScreen,shop:shopScreen,cases:casesScreen,gear:gearScreen,pets:petsScreen,story:storyScreen,stars:starsScreen,leaders:leadersScreen,bestiary:bestiaryScreen,notifications:notificationsScreen,'world-events':worldEventsScreen,encounters:encountersScreen,admin:adminScreen}[screen]||home)();app.innerHTML=`<div class="app-shell">${header()}${screenPath()}<main>${page}</main>${me.class?navBar():''}</div>${modalView()}`;applySearch('inventory');applySearch('craft');applySearch('gear');syncTelegramBack()}
 const forms={
  'clan-create':['ОСНОВАТЬ КЛАН','<label>Название (3–30 символов)</label><input id="input-name" maxlength="30" placeholder="Стальные волки" autocomplete="off"><p>Стоимость: 250 крышек</p>','submit-clan','Создать клан'],
  'clan-donate':['КАЗНА КЛАНА','<label>Количество крышек</label><input id="input-qty" type="number" min="1" value="50">','submit-donate','Внести'],
@@ -436,7 +436,16 @@ async function handle(action,value){
   if(action==='back'){await goBack();return}
   if(action==='nav'){modal=null;await nav(value);return}
   if(action==='leader-sort'){if(navigationBusy)return;const previous=leaderboardSort;leaderboardSort=['level','kills','pvp'].includes(value)?value:'level';navigationBusy=true;try{await fetchScreen();render()}catch(e){leaderboardSort=previous;notice(e.message,true)}finally{navigationBusy=false}return}
-  if(action==='inventory-filter'){inventoryFilter=value;render();return}
+  if(action==='gear-filter'){gearSlotFilter=value;render();return}
+   if(action==='gear-repair-all'){
+     const items=(me.gear||[]).filter(g=>g.equipped&&g.repair_cost);
+     if(!items.length){notice('Экипировка уже в порядке');return}
+     const caps=items.reduce((n,g)=>n+g.repair_cost.caps,0);
+     showModal('ПОЧИНИТЬ ВЕСЬ КОМПЛЕКТ?',`<p>Починить ${items.length} надетых предметов до 100% прочности за ${money(caps)} крышек и материалы?</p><p class="smallnote">Если чего-то не хватит, операция будет отменена целиком.</p>`,'gear-repair-all-confirm','ПОЧИНИТЬ');
+     return;
+   }
+   if(action==='gear-repair-all-confirm'){modal=null;await act('gear/repair-all',null);return}
+   if(action==='inventory-filter'){inventoryFilter=value;render();return}
    if(action==='craft-filter'){craftFilter=value;render();return}
    if(action==='craft-available'){craftReadyOnly=!craftReadyOnly;render();return}
    if(action==='refresh'){await sync();return}
@@ -598,7 +607,17 @@ async function handle(action,value){
     showModal('ВСКРЫТЬ КЕЙС?',`<p>Потратить <b>${esc(item.name)}</b> и получить одну случайную эксклюзивную пушку? Её нельзя скрафтить.</p>`,'case-open-confirm','ОТКРЫТЬ');
     modal.caseKey=value;return;
   }
-  if(action==='case-open-confirm'){const key=modal?.caseKey;modal=null;if(key)await act('cases/open',{key});return}
+  if(action==='case-open-confirm'){
+    const key=modal?.caseKey;modal=null;
+    if(key){
+      const result=await act('cases/open',{key});
+      if(result?.gear){
+        const g=result.gear;
+        showModal('🎉 ТВОЯ НОВАЯ ПУШКА',`<div class="case-prizes"><div class="case-prize"><strong>${esc(g.icon)} ${esc(g.rarity_name)} ${esc(g.name)}</strong><p>⚔ Урон: ${Number(g.power)||0} · Прочность: ${Number(g.durability)||100}/100</p><p>Коллекционная серия · Усиление до +10</p></div></div>`,'close','ЗАБРАТЬ');
+      }
+    }
+    return;
+  }
   if(action==='gear-repair'){
     const g=(me.gear||[]).find(x=>String(x.id)===String(value));if(!g||!g.repair_cost)return;
     const c=g.repair_cost;
@@ -661,17 +680,22 @@ async function handle(action,value){
   if(route[action]){let [url,body]=route[action];let res=await act(url,body);if(res?.battle&&action==='combat-start')actionScreen('fight');if(res?.battle===true&&action==='scavenge')actionScreen('fight');if(res?.finished)actionScreen('map',true);if(res&&action==='travel')actionScreen('map');if(res&&action==='class-confirm'){screen='home';navTrail=[]}if(res){await fetchScreen();render()}return}
 }
 function applySearch(group){
- const q=(group==='inventory'?inventoryQuery:craftQuery).trim().toLowerCase();
+ const q=(group==='inventory'?inventoryQuery:group==='craft'?craftQuery:gearQuery).trim().toLowerCase();
  const rows=app.querySelectorAll(`[data-search-group="${group}"]`);
  let count=0;rows.forEach(row=>{const found=!q||(row.dataset.search||'').includes(q);row.hidden=!found;if(found)count++});
  const empty=app.querySelector(`[data-filter-empty="${group}"]`);if(empty)empty.hidden=count!==0;
 }
 app.addEventListener('input',event=>{
  const group=event.target?.dataset?.listSearch;
- if(!['inventory','craft'].includes(group))return;
+ if(!['inventory','craft','gear'].includes(group))return;
  const query=String(event.target.value||'').slice(0,64);
- if(group==='inventory')inventoryQuery=query;else craftQuery=query;
+ if(group==='inventory')inventoryQuery=query;else if(group==='craft')craftQuery=query;else gearQuery=query;
  applySearch(group);
+});
+app.addEventListener('change',e=>{
+  if(e.target?.id!=='gear-sort')return;
+  gearSort=['equipped','rarity','power','worn'].includes(e.target.value)?e.target.value:'equipped';
+  render();
 });
 app.addEventListener('click',e=>{let b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.classList.contains('modal-bg')&&e.target!==b)return;e.preventDefault();handle(b.dataset.action,b.dataset.value||'').catch(err=>notice(err.message,true))});
 try{tg?.BackButton?.onClick(()=>goBack())}catch(e){}
