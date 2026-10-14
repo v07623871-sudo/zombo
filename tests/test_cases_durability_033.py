@@ -26,7 +26,7 @@ def create(api,pid):
 
 
 def test_catalog_has_16_craftables_12_unguessable_noncraft_case_exclusives():
-    assert len(NEW_RECIPES)==16 and len(CASES)==3
+    assert len(NEW_RECIPES)==16 and len(CASES)==7
     assert len(RECIPES)>=56
     exclusive={key for key,v in NEW_GEAR.items() if v.get('exclusive')}
     assert len(exclusive)==12
