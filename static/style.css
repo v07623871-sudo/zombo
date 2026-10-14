@@ -294,3 +294,32 @@
 .mission-rank>b{font-size:12px;white-space:nowrap;color:#efc57f}
 @media(max-width:390px){.mission-footer{align-items:stretch;flex-direction:column}.mission-footer .btn{width:100%}.mission-head .flex-between{flex-wrap:wrap}}
 .row-main p{overflow-wrap:anywhere}
+
+/* Seven collectible weapon cases — responsive dark military collection. */
+.case-intro{position:relative;border:1px solid #796348;border-radius:17px;padding:20px 18px;margin:10px 0 18px;background:radial-gradient(ellipse at 100% 0%,#5942255e,transparent 65%),linear-gradient(125deg,#272e30,#13191c 80%);overflow:hidden}
+.case-intro:after{content:'◈';position:absolute;right:-8px;top:10px;font-size:120px;color:#c89f4426;pointer-events:none}
+.case-intro h2{position:relative;z-index:1;font:700 clamp(25px,6vw,36px)/1.08 Oswald,sans-serif;letter-spacing:.4px;margin:10px 0}
+.case-intro h2 b{color:var(--gold)}
+.case-intro p{position:relative;z-index:1;max-width:460px;font-size:11px;line-height:1.7;color:#b4bcbd}
+.case-stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px;font-size:10px;letter-spacing:.8px;font-weight:800;color:#d8bc8c}
+.case-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,285px),1fr));gap:13px}
+.case-item{--case-glow:#79917e;background:linear-gradient(142deg,#252c30,#13191d 75%);border:1px solid #526b60;border-radius:16px;padding:16px;box-shadow:inset 0 1px #ffffff12,0 8px 24px #0005}
+.case-item.tier-2{--case-glow:#7cb3a1;border-color:#558c7b}
+.case-item.tier-3{--case-glow:#80a6dd;border-color:#476c9d}
+.case-item.tier-4{--case-glow:#ae8bd1;border-color:#735b98}
+.case-item.tier-5,.case-item.tier-6{--case-glow:#e4ba70;border-color:#9c7c4c}
+.case-heading{display:flex;align-items:flex-start;gap:12px}
+.case-illustration{display:flex;align-items:center;justify-content:center;flex:none;width:62px;height:66px;border:1px solid var(--case-glow);border-radius:12px;background:radial-gradient(circle,#ffffff17,#0006);font-size:31px}
+.case-heading h3{font:700 19px Oswald,sans-serif;margin:6px 0;color:#eff0e7}
+.case-heading p{font-size:10px;line-height:1.6;color:#9eacae;margin:0}
+.case-odds{display:flex;gap:6px;flex-wrap:wrap;margin:15px 0 12px}
+.case-odds-cell{font-size:9px;border:1px solid #46515c;border-radius:7px;padding:6px 7px;background:#0f161a;color:#adb8bd}
+.case-odds-cell b{color:#eff2f0}
+.case-odds-cell.rarity-legendary{border-color:#a88a4d;color:#eac680}
+.case-odds-cell.rarity-epic{border-color:#675381;color:#bda3e6}
+.case-weapons{display:grid;gap:5px;margin:10px 0 13px}
+.case-weapon{display:flex;align-items:center;justify-content:space-between;gap:9px;background:#121a1e;padding:8px 10px;border-radius:7px;color:#d5dde0;font-size:11px}
+.case-weapon strong{white-space:nowrap;color:var(--case-glow)}
+.case-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px}
+.case-owned{font-size:10px;color:#aab8b9}.case-owned b{font-size:13px;color:var(--gold)}
+@media(max-width:400px){.case-gallery{grid-template-columns:minmax(0,1fr)}.case-heading{gap:9px}.case-illustration{width:53px;height:58px;font-size:26px}}
