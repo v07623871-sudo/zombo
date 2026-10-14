@@ -2,6 +2,7 @@ import random, math
 from datetime import timedelta, datetime
 from sqlalchemy import select, func
 from models import now, Player, ItemStack, Battle, WorldBoss, BossHit, QuestProgress, Territory
+from survival import survival, apply_exertion
 
 CLASSES = {
     'medic': {'name':'Врач','icon':'✚','subtitle':'Медик отряда','color':'#6dc7ba','bonus':'Лечение ×2 · регенерация 5% HP/ход','power':1.00,'healing':2.0,'loot':1.0,'crit':0.05,'hp':110},
@@ -887,7 +888,8 @@ def tick(p):
     hours=int(max(0,(current-hp_clock).total_seconds())//3600)
     if hours:
         per_hour=max(0,1+int(values.get('regen',0))+int(talent_bonus(p,'regen')))
-        p.hp=min(max_hp(p),p.hp+hours*per_hour)
+        if not survival(p.hunger,p.thirst).hp_regen_blocked:
+            p.hp=min(max_hp(p),p.hp+hours*per_hour)
         hp_clock+=timedelta(hours=hours)
     # Preserve the marker even if no full hour has elapsed. Otherwise repeated
     # 5-minute polls would keep restarting the first hour.
@@ -998,7 +1000,10 @@ def player_view(db,p):
         'pet':pet_status(p),
         'enemy_codex':(p.stats or {}).get('_enemy_codex',{}),
         'gear':gear_list(db,p.id),'gear_stats':gear_stats(db,p.id),
-        'hp':p.hp,'max_hp':max_hp(p),'stamina':p.stamina,'max_stamina':500,'hunger':p.hunger,'thirst':p.thirst,'caps':p.caps,
+        'hp':p.hp,'max_hp':max_hp(p),'stamina':p.stamina,'max_stamina':500,'hunger':p.hunger,'thirst':p.thirst,
+        'survival':{'damage_percent':round((1-survival(p.hunger,p.thirst).damage_mult)*100),
+                    'hp_regen_blocked':survival(p.hunger,p.thirst).hp_regen_blocked,
+                    'status':survival(p.hunger,p.thirst).status},'caps':p.caps,
         'zombo':p.zombo,'location':p.location,'kills':p.kills,'rating':p.rating,'karma':p.karma,'clan_id':p.clan_id,'pvp_wins':p.pvp_wins,
         'last_daily':p.last_daily,'vip_until':aware(p.vip_until).isoformat() if p.vip_until else None,'xp_boost_until':aware(p.xp_boost_until).isoformat() if p.xp_boost_until else None,'loot_boost_until':aware(p.loot_boost_until).isoformat() if p.loot_boost_until else None,'battle':battle_view(battle),'inventory':[{'key':i.item_key,'qty':i.quantity,'equipped':i.equipped,**ITEMS[i.item_key]} for i in inv if i.item_key in ITEMS]}
 
@@ -1025,7 +1030,7 @@ def attack_power(db,p):
     from gear import gear_stats
     w=gear_stats(db,p.id)['power'] or w
     cls=CLASSES.get(p.hero_class,CLASSES['soldier'])
-    return max(1,int((7+p.level*2+p.stats.get('strength',0)*2+w)*cls['power']*(1+talent_bonus(p,'power')+pet_bonus(p,'power'))))
+    return max(1,int((7+p.level*2+p.stats.get('strength',0)*2+w)*cls['power']*(1+talent_bonus(p,'power')+pet_bonus(p,'power'))*survival(p.hunger,p.thirst).damage_mult))
 
 def combat_round(db,p,b,action,zone='body'):
     if action not in ('attack','medkit','flee','defend','skill','pet'):raise ValueError('Неизвестное действие')
@@ -1204,12 +1209,13 @@ def combat_round(db,p,b,action,zone='body'):
                           + (' Страховка сработала!' if losses['insured'] else '')}
     return {'finished':False,'message':msg,'battle':battle_view(b)}
 
-def spawn_battle(db,p):
+def spawn_battle(db,p,*,ambush=False):
     if p.location=='base':raise ValueError('Сначала отправься в локацию')
     if db.scalar(select(Battle).where(Battle.player_id==p.id)):
         raise ValueError('Сначала закончи текущий бой')
     if p.hp < 1:raise ValueError('Нужно восстановить здоровье')
     spend_stamina(p,2)
+    if not ambush:apply_exertion(p,hunger=2,thirst=3)
     threat=LOCATIONS[p.location]['threat']
     key=choose_enemy(threat)
     elite=choose_elite_modifier(threat)
