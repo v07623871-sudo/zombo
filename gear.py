@@ -258,9 +258,12 @@ def repair_cost(item):
     missing=MAX_DURABILITY-durability_of(item)
     if not missing:return None
     rank=RARITIES[item.rarity]['rank']
-    return {'caps':int(math.ceil(15+missing*(1.15+rank*.23)+item.level*4)),
+    exclusive=bool(BASE_GEAR[item.base_key].get('exclusive'))
+    # Extra money/material sinks for cases keep crafted equipment relevant.
+    base=15+missing*(1.15+rank*.23)+item.level*4
+    return {'caps':int(math.ceil(base*(1.25 if exclusive else 1))),
             'material':BASE_GEAR[item.base_key]['material'],
-            'qty':1+int(math.ceil(missing/25)),
+            'qty':1+int(math.ceil(missing/25))+(1 if exclusive and missing>=50 else 0),
             'rare':1 if rank>=3 and missing>=65 else 0}
 
 
@@ -286,7 +289,7 @@ def roll_case_drop(threat,rng=None):
     rng=rng or random
     values=case_drop_weights(threat)
     roll=rng.random()*100
-    for key in ('relic_case','military_case','field_case'):
+    for key in sorted(values, key=lambda name:CASES[name]['tier'],reverse=True):
         if roll<values[key]:return key
         roll-=values[key]
     return None
@@ -388,10 +391,14 @@ def gear_stats(db:Session,player_id:int):
 def upgrade_cost(item:GearItem):
     rarity_rank=RARITIES[item.rarity]['rank']
     next_level=item.level+1
-    return {'caps':int(35+25*next_level*(1+rarity_rank*.42)),
+    exclusive=bool(BASE_GEAR[item.base_key].get('exclusive'))
+    coins=35+25*next_level*(1+rarity_rank*.42)
+    materials=2+math.ceil(next_level/2)+rarity_rank
+    return {'caps':int(math.ceil(coins*(1.20 if exclusive else 1))),
             'material':BASE_GEAR[item.base_key]['material'],
-            'qty':int(2+math.ceil(next_level/2)+rarity_rank),
-            'rare': 1 if next_level in (5,8,10) else 0}
+            'qty':int(math.ceil(materials*(1.20 if exclusive else 1))),
+            'rare':({5:1,8:2,10:3}.get(next_level,0) if exclusive
+                    else 1 if next_level in (5,8,10) else 0)}
 
 
 def _owned_locked(db,player_id,item_id):
@@ -444,13 +451,19 @@ def dismantle_gear(db:Session,player_id,item_id):
     item=_owned_locked(db,player_id,item_id)
     if item.equipped:raise ValueError('Сними экипировку перед разбором')
     rank=RARITIES[item.rarity]['rank']
-    # Salvage is intentionally below crafting cost: no material-printing exploits.
-    qty=min(5,1+rank+item.level//4)
-    material=BASE_GEAR[item.base_key]['material']
+    desc=BASE_GEAR[item.base_key]
+    exclusive=bool(desc.get('exclusive'))
+    # Duplicates have some value without creating rare tokens from cheap
+    # common/uncommon store cases or generating spendable caps.
+    qty=min(6,1+rank+item.level//4)
+    material=desc['material']
+    tokens=(2 if rank==4 else 1 if rank>=2 else 0) if exclusive else (1 if rank>=3 else 0)
+    rubber=1 if exclusive and random.random()<.25 else 0
     give_item(db,player_id,material,qty)
-    if rank>=3:give_item(db,player_id,'rare',1)
+    if tokens:give_item(db,player_id,'rare',tokens)
+    if rubber:give_item(db,player_id,'rubber',rubber)
     db.delete(item)
-    return {'material':material,'quantity':qty,'rare':1 if rank>=3 else 0}
+    return {'material':material,'quantity':qty,'rare':tokens,'rubber':rubber}
 
 
 def install_gear(app,with_player,ready):
