@@ -13,6 +13,7 @@ from sqlalchemy import Column, Integer, BigInteger, String, DateTime, JSON, Bool
 from sqlalchemy.orm import Session
 from models import Base, SessionLocal, Player, now
 from game import give_item, take_item, item_count, attack_power, spend_stamina, max_hp, gain_xp, talent_bonus
+from armory_content import raid_case_drop
 from notifications import queue_notification
 
 RAIDS={
@@ -309,11 +310,8 @@ def install_raids(app, with_player, ready):
                 try:drop=gear_view(roll_drop(db,p.id,threat,minimum=min_rarity))
                 except ValueError:pass  # Locker cap must not block currency/XP rewards.
             # Battle cases are earned from cleared raids; no Stars payments.
-            case_key=None
-            probability={'outpost':.20,'vault':.45,'citadel':.65}[r.scenario]
-            if random.random()<probability:
-                case_key={'outpost':'field_case','vault':'military_case','citadel':'relic_case'}[r.scenario]
-                give_item(db,p.id,case_key)
+            case_key=raid_case_drop(r.scenario,random)
+            if case_key:give_item(db,p.id,case_key)
             member.rewarded=True
             return {'message':f'Награда: {xp} XP, {caps} крышек и редкие припасы!'+(' · '+drop['rarity_name']+' '+drop['name'] if drop else ''), 'xp':xp,'caps':caps,'gear_drop':drop,'case_drop':case_key}
 
