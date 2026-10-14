@@ -2,7 +2,7 @@ import random, math
 from datetime import timedelta, datetime
 from sqlalchemy import select, func
 from models import now, Player, ItemStack, Battle, WorldBoss, BossHit, QuestProgress, Territory
-from armory_content import NEW_ITEM_DESCRIPTIONS, NEW_RECIPES, CASES
+from armory_content import NEW_ITEM_DESCRIPTIONS, NEW_RECIPES, CASES, CASE_SHOP_PRICES
 
 CLASSES = {
     'medic': {'name':'Врач','icon':'✚','subtitle':'Медик отряда','color':'#6dc7ba','bonus':'Лечение ×2 · регенерация 5% HP/ход','power':1.00,'healing':2.0,'loot':1.0,'crit':0.05,'hp':110},
@@ -702,7 +702,7 @@ RECIPES.update({
 })
 
 RECIPES.update(NEW_RECIPES)
-SHOP_PRICES.update({'field_case':650,'military_case':3000})
+SHOP_PRICES.update(CASE_SHOP_PRICES)
 
 QUESTS = {
     'kills':{'name':'Чистка периметра','description':'Победить 5 заражённых','target':5,'reward':{'caps':120,'xp':180}},
