@@ -29,7 +29,7 @@ def gift_catalog():
             'key':key,'name':meta['name'],'icon':meta.get('icon','📦'),
             'type':meta.get('type','material')}
             for key,meta in ITEMS.items()
-            if not (key in BASE_GEAR and BASE_GEAR[key].get('exclusive'))},
+            if key not in BASE_GEAR or key in ('knife','vest','pistol','rifle')},
         'gear':{key:{'key':key,'name':meta['name'],'icon':meta['icon'],
                      'slot':meta['slot'],'exclusive':bool(meta.get('exclusive'))}
                 for key,meta in BASE_GEAR.items()},
