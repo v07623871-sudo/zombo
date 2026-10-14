@@ -130,7 +130,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.34.0'
+APP_VERSION='0.35.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -161,7 +161,7 @@ async def secure_headers(request, call_next):
             pid = None
         if pid is not None:
             economic = request.url.path.startswith(('/api/market/', '/api/gear-market/',
-                        '/api/shop/', '/api/cases/', '/api/stars/', '/api/premium/', '/api/admin/',
+                        '/api/shop/', '/api/cases/', '/api/chests/', '/api/stars/', '/api/premium/', '/api/admin/',
                         '/api/clans/donate', '/api/territories/bid'))
             try:
                 # Commit throttle counters even when a request is denied.
@@ -239,7 +239,9 @@ def with_player(request:Request, db: Session):
     return p
 
 @app.get('/api/config')
-def config():return {'enemies':ENEMIES,'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES,'war_timezone':WAR_TIMEZONE,'location_territories':LOCATION_TERRITORY,'pets':PETS,'pet_adoption':{'random':750,'chosen':1250},'cases':{key:{**entry,'shop_price':CASE_SHOP_PRICES.get(key),'weapons':CASE_POOLS[key]} for key,entry in CASES.items()}}
+def config():return {'enemies':ENEMIES,'classes':CLASSES,'skills':SKILLS,'skill_trees':SKILL_TREES,'stats':STATS,'items':ITEMS,'locations':LOCATIONS,'recipes':RECIPES,'quests':QUESTS,'territory_names':TERRITORIES,'war_timezone':WAR_TIMEZONE,'location_territories':LOCATION_TERRITORY,'pets':PETS,'pet_adoption':{'random':750,'chosen':1250},'cases':{key:{**entry,'shop_price':None,'gem_price':GEM_CASE_PRICES[key],
+            'weapons':CASE_POOLS[key]} for key,entry in CASES.items()},
+            'chests':chest_catalog()}
 
 @app.get('/api/me')
 def me(request:Request,db:Session=Depends(db_session)):
@@ -267,7 +269,8 @@ def ready(p):
 from raids import install_raids, RaidRun, RaidMember
 from expeditions import install_expeditions, ExpeditionRun, ExpeditionMember, settle_player as settle_player_expedition
 from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats, open_case, gear_view, wear_equipped
-from armory_content import CASES, CASE_POOLS, CASE_SHOP_PRICES
+from armory_content import CASES, CASE_POOLS
+from premium_chests import CHESTS, GEM_CASE_PRICES, chest_catalog, open_paid_chest
 from story import install_story, StoryProgress, CHAPTERS
 from gear_market import install_gear_market, expire_sales
 from clan_missions import install_clan_missions
@@ -454,6 +457,16 @@ def case_open(body:Choice,request:Request,db:Session=Depends(db_session)):
         view=gear_view(reward)
         return {'message':f'Кейс вскрыт! {view["rarity_name"]} {view["name"]}.',
                 'gear':view}
+
+@app.post('/api/chests/open')
+def paid_chest_open(body:Choice,request:Request,db:Session=Depends(db_session)):
+    with db.begin():
+        p=with_player(request,db);ready(p)
+        if db.scalar(select(Battle.id).where(Battle.player_id==p.id)):
+            raise ValueError('Нельзя открывать сундук в бою')
+        rewards=open_paid_chest(db,p.id,body.key)
+        return {'message':f'🎉 Открыт {CHESTS[body.key]["name"]}! Наград: {len(rewards)}.',
+                'rewards':rewards,'count':len(rewards)}
 
 
 @app.post('/api/daily')
@@ -967,6 +980,12 @@ def shop_buy(body:Choice,request:Request,db:Session=Depends(db_session)):
 STAR_OFFERS={'zombo_100':(100,100),'zombo_550':(500,550),'zombo_1800':(1500,1800),'zombo_6500':(5000,6500)}
 
 PREMIUM_OFFERS={
+    **{key:{'name':f'Открыть {CASES[key]["name"]}','price':price,
+           'kind':'case','desc':'Коллекционная пушка из кейса · Zombo 💎'}
+       for key,price in GEM_CASE_PRICES.items()},
+    **{key:{'name':f'{data["icon"]} {data["name"]}','price':data['price'],
+           'kind':'chest','drops':data['drops'],'desc':data['description']}
+       for key,data in CHESTS.items()},
     'vip_7':{'name':'VIP на 7 дней','price':250,'days':7,'kind':'vip','desc':'Ускоренная энергия и +20% XP'},
     'vip_14':{'name':'VIP на 14 дней','price':450,'days':14,'kind':'vip','desc':'Ускоренная энергия и +20% XP'},
     'vip_30':{'name':'VIP на 30 дней','price':800,'days':30,'kind':'vip','desc':'Ускоренная энергия и +20% XP'},
@@ -986,6 +1005,12 @@ def premium_buy(body:Choice,request:Request,db:Session=Depends(db_session)):
         if not offer:raise ValueError('Нет такого улучшения')
         if p.zombo<offer['price']:raise ValueError('Недостаточно Zombo')
         p.zombo-=offer['price']
+        if offer['kind'] in ('case','chest'):
+            # Store a redeemable box. Purchases and redemption are separate,
+            # so a full gear locker never destroys paid gems or case items.
+            give_item(db,p.id,body.key,1)
+            return {'message':f'Приобретено: {offer["name"]}. Открой в инвентаре!',
+                    'item':body.key}
         if offer['kind']=='insurance':
             from game import insurance_active
             flags=dict(p.stats or {})
