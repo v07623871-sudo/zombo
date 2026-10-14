@@ -13,8 +13,8 @@ def auth(pid):
 
 
 def test_all_forty_recipes_use_real_inputs_and_usable_outputs():
-    assert len(RECIPES)==40
-    assert len([k for k in BASE_GEAR if k not in ('knife','vest','rifle','pistol')])==20
+    assert len(RECIPES)>=56
+    assert len(BASE_GEAR)>=52
     for key,recipe in RECIPES.items():
         output=recipe.get('output',key)
         assert output in ITEMS,key

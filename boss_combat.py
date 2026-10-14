@@ -80,6 +80,9 @@ def boss_counterattack(db,p,boss,turn,*,rng=None):
                   +pet_bonus(p,'mitigation'))
     taken=0 if missed else max(1,round(max(1,raw-defense)*(1-reduction)))
     p.hp=max(0,p.hp-taken)
+    if taken:
+        from gear import wear_equipped
+        wear_equipped(db,p.id,'armor',1)
 
     drained=0
     if special and not missed:

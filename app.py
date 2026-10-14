@@ -130,7 +130,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.32.0'
+APP_VERSION='0.33.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -161,7 +161,7 @@ async def secure_headers(request, call_next):
             pid = None
         if pid is not None:
             economic = request.url.path.startswith(('/api/market/', '/api/gear-market/',
-                        '/api/shop/', '/api/stars/', '/api/premium/', '/api/admin/',
+                        '/api/shop/', '/api/cases/', '/api/stars/', '/api/premium/', '/api/admin/',
                         '/api/clans/donate', '/api/territories/bid'))
             try:
                 # Commit throttle counters even when a request is denied.
@@ -266,7 +266,7 @@ def ready(p):
 
 from raids import install_raids, RaidRun, RaidMember
 from expeditions import install_expeditions, ExpeditionRun, ExpeditionMember, settle_player as settle_player_expedition
-from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats
+from gear import install_gear, create_gear, GearItem, BASE_GEAR, gear_stats, open_case, gear_view, wear_equipped
 from story import install_story, StoryProgress, CHAPTERS
 from gear_market import install_gear_market, expire_sales
 from clan_missions import install_clan_missions
@@ -443,6 +443,18 @@ def craft(body:Choice,request:Request,db:Session=Depends(db_session)):
         else:give_item(db,p.id,output,recipe['qty'])
         return {'message':f'Создано: {ITEMS[output]["name"]} ×{recipe["qty"]}'}
 
+@app.post('/api/cases/open')
+def case_open(body:Choice,request:Request,db:Session=Depends(db_session)):
+    with db.begin():
+        p=with_player(request,db);ready(p)
+        if db.scalar(select(Battle.id).where(Battle.player_id==p.id)):
+            raise ValueError('Нельзя вскрывать кейс в бою')
+        reward=open_case(db,p.id,body.key)
+        view=gear_view(reward)
+        return {'message':f'Кейс вскрыт! {view["rarity_name"]} {view["name"]}.',
+                'gear':view}
+
+
 @app.post('/api/daily')
 def daily(request:Request,db:Session=Depends(db_session)):
     with db.begin():
@@ -533,6 +545,7 @@ def boss_hit(request:Request,db:Session=Depends(db_session)):
         damage=max(1,int(attack_power(db,p)*random.randint(3,5)*(1+talent_bonus(p,'boss'))))
         damage=min(damage,b.hp)
         b.hp-=damage
+        wear_equipped(db,p.id,'weapon',1)
         if entry:entry.damage+=damage;entry.last_hit=now()
         else:db.add(BossHit(player_id=p.id,spawn_at=cycle,damage=damage))
         turn=next_turn(p,cycle)
@@ -888,9 +901,11 @@ def pvp_act(body:PvPDecision,request:Request,db:Session=Depends(db_session)):
                             if damage:
                                 damage=max(1,int(damage*(1-min(.65,CLASSES[target.hero_class].get('mitigation',0)
                                                          +talent_bonus(target,'mitigation')))))
+                    if body.action!='defend':wear_equipped(db,p.id,'weapon',1)
                     message=f'{p.name}: '+({'attack':'атака','crit':'критическая атака',
                         'feint':'финт','defend':'защита'}[body.action])+f' — {damage} урона'
                 if damage:
+                    wear_equipped(db,target.id,'armor',1)
                     if p.id==m.challenger_id:
                         m.hp_b=max(0,m.hp_b-damage);dead=m.hp_b==0
                     else:

@@ -22,7 +22,8 @@ with engine.begin() as connection:
     assert set(plan['pending_tables']) == {
         'notification_category_optins', 'clan_season_contributions',
         'clan_season_settlements', 'clan_season_results', 'clan_season_reward_claims',
-        'encounter_clues', 'resource_ledger', 'clan_treasury_ledger'}
+        'encounter_clues', 'resource_ledger', 'clan_treasury_ledger',
+        'gear_condition'}
     assert len(plan['pending_versions']) == len(MIGRATIONS)
     created = migrate(connection)
     assert set(plan['pending_tables']) <= set(created)

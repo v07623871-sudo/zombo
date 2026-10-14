@@ -232,6 +232,8 @@ def install_raids(app, with_player, ready):
             if body.action=='attack':
                 dealt=max(1,int(attack_power(db,p)*random.uniform(.85,1.2)*(1+.05*r.stage)))
                 r.enemy_hp=max(0,r.enemy_hp-dealt)
+                from gear import wear_equipped
+                wear_equipped(db,p.id,'weapon',1)
                 fighter.contribution+=dealt
                 raid_log(r,f'⚔ {p.name}: {dealt} урона. Осталось {r.enemy_hp} HP у босса.')
             elif body.action=='guard':
@@ -267,6 +269,8 @@ def install_raids(app, with_player, ready):
                 from gear import gear_stats
                 damage=max(1,damage-min(gear_stats(db,p.id)['defense'],int(damage*.65)))
                 fighter.hp=max(0,fighter.hp-damage)
+                from gear import wear_equipped
+                wear_equipped(db,p.id,'armor',1)
                 if fighter.hp==0:raid_log(r,f'☠ {p.name} выбыл из боя!')
                 if not any(m.hp>0 for m in party):r.status='failed';raid_log(r,'Группа уничтожена. Экспедиция провалена.')
             if r.status in ('cleared','failed'):
@@ -304,7 +308,13 @@ def install_raids(app, with_player, ready):
                 threat={'outpost':2,'vault':4,'citadel':5}[r.scenario]
                 try:drop=gear_view(roll_drop(db,p.id,threat,minimum=min_rarity))
                 except ValueError:pass  # Locker cap must not block currency/XP rewards.
+            # Battle cases are earned from cleared raids; no Stars payments.
+            case_key=None
+            probability={'outpost':.20,'vault':.45,'citadel':.65}[r.scenario]
+            if random.random()<probability:
+                case_key={'outpost':'field_case','vault':'military_case','citadel':'relic_case'}[r.scenario]
+                give_item(db,p.id,case_key)
             member.rewarded=True
-            return {'message':f'Награда: {xp} XP, {caps} крышек и редкие припасы!'+(' · '+drop['rarity_name']+' '+drop['name'] if drop else ''), 'xp':xp,'caps':caps,'gear_drop':drop}
+            return {'message':f'Награда: {xp} XP, {caps} крышек и редкие припасы!'+(' · '+drop['rarity_name']+' '+drop['name'] if drop else ''), 'xp':xp,'caps':caps,'gear_drop':drop,'case_drop':case_key}
 
     app.include_router(router)
