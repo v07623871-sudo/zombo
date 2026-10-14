@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, relationship
 
 from models import Base, Player, ItemStack, SessionLocal, now
 from armory_content import NEW_GEAR, CASES, CASE_POOLS, case_drop_weights
+from legendary_ammo import AMMO_KEY, STARTER_LEGENDARY_ROUNDS, is_firearm
 
 RARITIES = {
     'common': {'name': 'Обычный', 'color': '#b2b7c0', 'mult': 1.00, 'rank': 0},
@@ -332,7 +333,7 @@ def roll_case_drop(threat,rng=None):
 
 def open_case(db,player_id,key,rng=None):
     """Consume a case and mint one exclusive weapon atomically."""
-    from game import take_item
+    from game import take_item,give_item
     if key not in CASES:raise ValueError('Неизвестный кейс')
     rng=rng or random
     pool=CASE_POOLS[key]
@@ -340,6 +341,8 @@ def open_case(db,player_id,key,rng=None):
     weights=CASES[key]['rarity_weights']
     rarity=rng.choices(list(weights),weights=list(weights.values()),k=1)[0]
     item=create_gear(db,player_id,base,rarity,source='case')
+    if rarity=='legendary' and is_firearm(base):
+        give_item(db,player_id,AMMO_KEY,STARTER_LEGENDARY_ROUNDS)
     take_item(db,player_id,key,1)
     return item
 
@@ -399,6 +402,7 @@ def gear_view(item:GearItem):
             'color':rarity['color'],'rarity_rank':rarity['rank'],'level':item.level,
             'max_level':MAX_UPGRADE,'equipped':item.equipped,'source':item.source,
             'exclusive':bool(desc.get('exclusive')),
+            'ammo_key':AMMO_KEY if item.rarity=='legendary' and is_firearm(item.base_key) else None,
             'durability':durability_of(item),'max_durability':MAX_DURABILITY,
             'repair_cost':repair_cost(item),
             **gear_values(item), 'upgrade_cost':upgrade_cost(item) if item.level<MAX_UPGRADE else None}
