@@ -233,10 +233,18 @@ def durability_factor(item):
 def wear_equipped(db,player_id,slot,points=1):
     """Wear unique equipped items, guarded by the caller's Player row lock."""
     if slot not in ('weapon','armor') or points<=0:return None
-    equipped=db.scalars(select(GearItem).where(
+    equipped=list(db.scalars(select(GearItem).where(
         GearItem.player_id==player_id,GearItem.equipped.is_(True))
-        .with_for_update()).all()
-    item=next((x for x in equipped if BASE_GEAR[x.base_key]['slot']==slot),None)
+        .with_for_update()))
+    # SessionLocal.autoflush=False: a freshly equipped item may still be
+    # dirty in the ORM identity map and invisible to the database SELECT.
+    # Honor the in-transaction version; filter formerly equipped items.
+    for pending in db.identity_map.values():
+        if (isinstance(pending,GearItem) and pending.player_id==player_id
+                and pending.equipped and pending not in equipped):
+            equipped.append(pending)
+    item=next((x for x in equipped if x.equipped
+               and BASE_GEAR[x.base_key]['slot']==slot),None)
     if item is None:return None
     before=durability_of(item)
     if before:
