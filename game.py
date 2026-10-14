@@ -989,7 +989,8 @@ def player_view(db,p):
     tick(p)
     inv=db.scalars(select(ItemStack).where(ItemStack.player_id==p.id).order_by(ItemStack.equipped.desc(),ItemStack.item_key)).all()
     battle=db.scalar(select(Battle).where(Battle.player_id==p.id))
-    return {'id':p.id,'name':p.name,'username':p.username,'class':p.hero_class,'level':p.level,'xp':p.xp,'xp_next':xp_needed(p.level),
+    from pvp_rating import league
+    return {'id':p.id,'name':p.name,'username':p.username,'class':p.hero_class,'level':p.level,'xp':p.xp,'xp_next':xp_needed(p.level),'league':league(p.rating),
         'stats':p.stats,'skills':p.skills,'stat_points':p.stat_points,'skill_points':p.skill_points,
         'talent_ranks':{n['key']:talent_rank(p,n['key']) for br in SKILL_TREES.get(p.hero_class,[]) for n in br['nodes']},
         'talent_bonuses':talent_bonuses(p),'talent_spent':len(p.skills or []),
