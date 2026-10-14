@@ -626,17 +626,411 @@ CASES = {
     }
   }
 }
+# ZOMBO 0.34: four extra unique cases and 16 exclusive guns.
+# These are deliberately absent from NEW_RECIPES; opening is the only normal source.
+NEW_GEAR.update({
+  "scrap_biter": {
+    "name": "Байтер",
+    "icon": "🔩",
+    "slot": "weapon",
+    "power": 20,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "scrap_case"
+  },
+  "scrap_fang": {
+    "name": "Клык",
+    "icon": "🪓",
+    "slot": "weapon",
+    "power": 22,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "scrap_case"
+  },
+  "scrap_grinder": {
+    "name": "Гриндер",
+    "icon": "⚙️",
+    "slot": "weapon",
+    "power": 24,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "scrap_case"
+  },
+  "scrap_howler": {
+    "name": "Хаулер",
+    "icon": "🔧",
+    "slot": "weapon",
+    "power": 25,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "scrap_case"
+  },
+  "hunter_foxeye": {
+    "name": "Лисий глаз",
+    "icon": "🎯",
+    "slot": "weapon",
+    "power": 26,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "hunter_case"
+  },
+  "hunter_nomad": {
+    "name": "Номад",
+    "icon": "🏹",
+    "slot": "weapon",
+    "power": 28,
+    "defense": 0,
+    "material": "wood",
+    "exclusive": True,
+    "case": "hunter_case"
+  },
+  "hunter_needle": {
+    "name": "Игла",
+    "icon": "📍",
+    "slot": "weapon",
+    "power": 29,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "hunter_case"
+  },
+  "hunter_trailbreaker": {
+    "name": "Трейлбрейкер",
+    "icon": "🦴",
+    "slot": "weapon",
+    "power": 31,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "hunter_case"
+  },
+  "assault_warden": {
+    "name": "Варден",
+    "icon": "🛡️",
+    "slot": "weapon",
+    "power": 32,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "assault_case"
+  },
+  "assault_crusher": {
+    "name": "Крашер",
+    "icon": "💥",
+    "slot": "weapon",
+    "power": 34,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "assault_case"
+  },
+  "assault_marauder": {
+    "name": "Мародёр",
+    "icon": "🔫",
+    "slot": "weapon",
+    "power": 36,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "assault_case"
+  },
+  "assault_bulldog": {
+    "name": "Бульдог-X",
+    "icon": "🐶",
+    "slot": "weapon",
+    "power": 38,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "assault_case"
+  },
+  "shadow_specter": {
+    "name": "Спектер",
+    "icon": "👁️",
+    "slot": "weapon",
+    "power": 39,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "shadow_case"
+  },
+  "shadow_nightfall": {
+    "name": "Найтфолл",
+    "icon": "🌒",
+    "slot": "weapon",
+    "power": 41,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "shadow_case"
+  },
+  "shadow_omen": {
+    "name": "Омен",
+    "icon": "☠️",
+    "slot": "weapon",
+    "power": 43,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "shadow_case"
+  },
+  "shadow_apex": {
+    "name": "Апекс-0",
+    "icon": "🦂",
+    "slot": "weapon",
+    "power": 45,
+    "defense": 0,
+    "material": "metal",
+    "exclusive": True,
+    "case": "shadow_case"
+  }
+})
+NEW_ITEM_DESCRIPTIONS.update({
+  "scrap_biter": {
+    "name": "Байтер",
+    "icon": "🔩",
+    "type": "weapon",
+    "power": 20,
+    "desc": "Эксклюзивная пушка из кейса «Кейс мусорщика». Крафт невозможен."
+  },
+  "scrap_fang": {
+    "name": "Клык",
+    "icon": "🪓",
+    "type": "weapon",
+    "power": 22,
+    "desc": "Эксклюзивная пушка из кейса «Кейс мусорщика». Крафт невозможен."
+  },
+  "scrap_grinder": {
+    "name": "Гриндер",
+    "icon": "⚙️",
+    "type": "weapon",
+    "power": 24,
+    "desc": "Эксклюзивная пушка из кейса «Кейс мусорщика». Крафт невозможен."
+  },
+  "scrap_howler": {
+    "name": "Хаулер",
+    "icon": "🔧",
+    "type": "weapon",
+    "power": 25,
+    "desc": "Эксклюзивная пушка из кейса «Кейс мусорщика». Крафт невозможен."
+  },
+  "hunter_foxeye": {
+    "name": "Лисий глаз",
+    "icon": "🎯",
+    "type": "weapon",
+    "power": 26,
+    "desc": "Эксклюзивная пушка из кейса «Кейс следопыта». Крафт невозможен."
+  },
+  "hunter_nomad": {
+    "name": "Номад",
+    "icon": "🏹",
+    "type": "weapon",
+    "power": 28,
+    "desc": "Эксклюзивная пушка из кейса «Кейс следопыта». Крафт невозможен."
+  },
+  "hunter_needle": {
+    "name": "Игла",
+    "icon": "📍",
+    "type": "weapon",
+    "power": 29,
+    "desc": "Эксклюзивная пушка из кейса «Кейс следопыта». Крафт невозможен."
+  },
+  "hunter_trailbreaker": {
+    "name": "Трейлбрейкер",
+    "icon": "🦴",
+    "type": "weapon",
+    "power": 31,
+    "desc": "Эксклюзивная пушка из кейса «Кейс следопыта». Крафт невозможен."
+  },
+  "assault_warden": {
+    "name": "Варден",
+    "icon": "🛡️",
+    "type": "weapon",
+    "power": 32,
+    "desc": "Эксклюзивная пушка из кейса «Штурмовой кейс». Крафт невозможен."
+  },
+  "assault_crusher": {
+    "name": "Крашер",
+    "icon": "💥",
+    "type": "weapon",
+    "power": 34,
+    "desc": "Эксклюзивная пушка из кейса «Штурмовой кейс». Крафт невозможен."
+  },
+  "assault_marauder": {
+    "name": "Мародёр",
+    "icon": "🔫",
+    "type": "weapon",
+    "power": 36,
+    "desc": "Эксклюзивная пушка из кейса «Штурмовой кейс». Крафт невозможен."
+  },
+  "assault_bulldog": {
+    "name": "Бульдог-X",
+    "icon": "🐶",
+    "type": "weapon",
+    "power": 38,
+    "desc": "Эксклюзивная пушка из кейса «Штурмовой кейс». Крафт невозможен."
+  },
+  "shadow_specter": {
+    "name": "Спектер",
+    "icon": "👁️",
+    "type": "weapon",
+    "power": 39,
+    "desc": "Эксклюзивная пушка из кейса «Теневой кейс». Крафт невозможен."
+  },
+  "shadow_nightfall": {
+    "name": "Найтфолл",
+    "icon": "🌒",
+    "type": "weapon",
+    "power": 41,
+    "desc": "Эксклюзивная пушка из кейса «Теневой кейс». Крафт невозможен."
+  },
+  "shadow_omen": {
+    "name": "Омен",
+    "icon": "☠️",
+    "type": "weapon",
+    "power": 43,
+    "desc": "Эксклюзивная пушка из кейса «Теневой кейс». Крафт невозможен."
+  },
+  "shadow_apex": {
+    "name": "Апекс-0",
+    "icon": "🦂",
+    "type": "weapon",
+    "power": 45,
+    "desc": "Эксклюзивная пушка из кейса «Теневой кейс». Крафт невозможен."
+  }
+})
+CASES.update({
+  "scrap_case": {
+    "name": "Кейс мусорщика",
+    "icon": "🧰",
+    "tier": 1,
+    "desc": "4 эксклюзивные самодельные пушки. Обычная 50% · необычная 40% · редкая 10%.",
+    "rarity_weights": {
+      "common": 50,
+      "uncommon": 40,
+      "rare": 10
+    }
+  },
+  "hunter_case": {
+    "name": "Кейс следопыта",
+    "icon": "🎒",
+    "tier": 2,
+    "desc": "4 эксклюзивные пушки. Необычная 65% · редкая 30% · эпическая 5%.",
+    "rarity_weights": {
+      "uncommon": 65,
+      "rare": 30,
+      "epic": 5
+    }
+  },
+  "assault_case": {
+    "name": "Штурмовой кейс",
+    "icon": "💣",
+    "tier": 4,
+    "desc": "4 эксклюзивные пушки. Редкая 82% · эпическая 17% · легендарная 1%.",
+    "rarity_weights": {
+      "rare": 82,
+      "epic": 17,
+      "legendary": 1
+    }
+  },
+  "shadow_case": {
+    "name": "Теневой кейс",
+    "icon": "🌑",
+    "tier": 6,
+    "desc": "Эндгейм: 4 эксклюзивные пушки. Эпическая 90% · легендарная 10%.",
+    "rarity_weights": {
+      "epic": 90,
+      "legendary": 10
+    }
+  }
+})
+
+# Balance older cases together with the four new ones. Every rarity pool sums
+# to 100%; top-end cases remain earned in-game, never sold for caps.
+CASES['field_case']['rarity_weights']={'uncommon':72,'rare':25,'epic':3}
+CASES['military_case']['rarity_weights']={'rare':78,'epic':20,'legendary':2}
+CASES['relic_case']['rarity_weights']={'epic':90,'legendary':10}
+
+CASE_SHOP_PRICES = {
+    'scrap_case':480,
+    'field_case':650,
+    'hunter_case':1750,
+    'military_case':3000,
+    'assault_case':5200,
+}
+# Deliberately no shop price for relic_case and shadow_case.
+
 CASE_POOLS = {
     key:tuple(item_key for item_key,entry in NEW_GEAR.items()
               if entry.get('exclusive') and entry.get('case')==key)
     for key in CASES
 }
 
+# Percent chance per PvE victory, in order threat 1..5. Total is below 2%.
+PVE_CASE_DROP = {
+    'field_case':(.30,.42,.55,.65,.70),
+    'scrap_case':(.15,.22,.25,.25,.28),
+    'hunter_case':(0,.06,.14,.20,.24),
+    'military_case':(0,0,.10,.23,.35),
+    'assault_case':(0,0,0,.05,.15),
+    'relic_case':(0,0,0,.02,.06),
+    'shadow_case':(0,0,0,0,.02),
+}
+
 def case_drop_weights(threat):
-    """Percentages per won PvE fight: max combined chance at tier 5 < 2%."""
+    """Percent probability of one case per completed PvE victory."""
     threat=max(1,min(5,int(threat)))
-    return {
-        'field_case':(.25,.40,.65,.90,1.20)[threat-1],
-        'military_case':(0,0,.15,.30,.50)[threat-1],
-        'relic_case':(0,0,0,0,.08)[threat-1],
-    }
+    return {key:levels[threat-1] for key,levels in PVE_CASE_DROP.items()}
+
+
+RAID_CASE_CHANCE = {'outpost':.25,'vault':.45,'citadel':.65}
+# Relative weights conditional on receiving a case at all.
+RAID_CASE_WEIGHTS = {
+    'outpost':{'field_case':50,'scrap_case':35,'hunter_case':15},
+    'vault':{'hunter_case':35,'military_case':40,'assault_case':20,'relic_case':5},
+    'citadel':{'military_case':15,'assault_case':25,
+               'relic_case':35,'shadow_case':25},
+}
+
+
+def raid_case_drop(scenario,rng=None):
+    """Choose at most one case from a completed raid; independent per member."""
+    import random
+    rng=rng or random
+    if scenario not in RAID_CASE_CHANCE:raise ValueError('Неизвестный рейд')
+    if rng.random()>=RAID_CASE_CHANCE[scenario]:return None
+    pool=RAID_CASE_WEIGHTS[scenario]
+    return rng.choices(tuple(pool),weights=tuple(pool.values()),k=1)[0]
+
+
+def validate_case_balance():
+    """Fail fast on invalid content and probabilities before release."""
+    if len(CASES)!=7 or len(CASE_POOLS)!=7:
+        raise ValueError('Нужно ровно семь кейсов')
+    if len({item for pool in CASE_POOLS.values() for item in pool})!=28:
+        raise ValueError('28 уникальных пушек должны принадлежать одному кейсу')
+    if any(len(pool)!=4 for pool in CASE_POOLS.values()):
+        raise ValueError('В каждом кейсе должно быть четыре пушки')
+    for key,meta in CASES.items():
+        if sum(meta['rarity_weights'].values())!=100:
+            raise ValueError(f'{key}: сумма редкостей не равна 100%')
+        if key in NEW_RECIPES:
+            raise ValueError('Кейс не должен крафтиться')
+        for weapon in CASE_POOLS[key]:
+            if weapon in NEW_RECIPES or not NEW_GEAR[weapon].get('exclusive'):
+                raise ValueError(f'{weapon}: эксклюзив нельзя крафтить')
+    for threat in range(1,6):
+        odds=case_drop_weights(threat)
+        if not 0<=sum(odds.values())<2:
+            raise ValueError(f'Угроза {threat}: слишком частый дроп кейсов')
+    for scenario,odds in RAID_CASE_WEIGHTS.items():
+        if sum(odds.values())!=100 or any(key not in CASES for key in odds):
+            raise ValueError(f'{scenario}: неверные веса кейсов')
+
+
+validate_case_balance()
