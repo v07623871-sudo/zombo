@@ -983,9 +983,8 @@ PVE_CASE_DROP = {
 }
 
 def case_drop_weights(threat):
-    """Percent probability of one case per completed PvE victory."""
-    threat=max(1,min(5,int(threat)))
-    return {key:levels[threat-1] for key,levels in PVE_CASE_DROP.items()}
+    """No paid loot in free fights. Kept for legacy callers/tests."""
+    return {key:0.0 for key in CASES}
 
 
 RAID_CASE_CHANCE = {'outpost':.25,'vault':.45,'citadel':.65}
@@ -999,13 +998,9 @@ RAID_CASE_WEIGHTS = {
 
 
 def raid_case_drop(scenario,rng=None):
-    """Choose at most one case from a completed raid; independent per member."""
-    import random
-    rng=rng or random
+    """Paid cases are unavailable in raids as requested."""
     if scenario not in RAID_CASE_CHANCE:raise ValueError('Неизвестный рейд')
-    if rng.random()>=RAID_CASE_CHANCE[scenario]:return None
-    pool=RAID_CASE_WEIGHTS[scenario]
-    return rng.choices(tuple(pool),weights=tuple(pool.values()),k=1)[0]
+    return None
 
 
 def validate_case_balance():
@@ -1026,8 +1021,8 @@ def validate_case_balance():
                 raise ValueError(f'{weapon}: эксклюзив нельзя крафтить')
     for threat in range(1,6):
         odds=case_drop_weights(threat)
-        if not 0<=sum(odds.values())<2:
-            raise ValueError(f'Угроза {threat}: слишком частый дроп кейсов')
+        if sum(odds.values())!=0:
+            raise ValueError(f'Платные кейсы не должны выпадать в PvE ({threat})')
     for scenario,odds in RAID_CASE_WEIGHTS.items():
         if sum(odds.values())!=100 or any(key not in CASES for key in odds):
             raise ValueError(f'{scenario}: неверные веса кейсов')

@@ -329,7 +329,7 @@ def base_for_threat(threat=1,rng=None):
 
 def create_gear(db:Session,player_id:int,base_key:str,rarity='common',source='drop'):
     if base_key not in BASE_GEAR:raise ValueError('Неизвестная экипировка')
-    if BASE_GEAR[base_key].get('exclusive') and source not in ('case','boss','raid','admin'):
+    if BASE_GEAR[base_key].get('exclusive') and source not in ('case','premium_chest','boss','raid','admin'):
         raise ValueError('Коллекционное оружие доступно только из кейса')
     if rarity not in RARITIES:raise ValueError('Неизвестная редкость')
     # Count includes all owned copies; hard limit prevents unbounded drops and DB growth.

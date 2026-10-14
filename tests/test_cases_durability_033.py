@@ -38,10 +38,9 @@ def test_catalog_has_16_craftables_12_unguessable_noncraft_case_exclusives():
     for key,recipe in NEW_RECIPES.items():
         assert key in BASE_GEAR and key in ITEMS
         assert all(mat in ITEMS and qty>0 for mat,qty in recipe['cost'].items())
-    high=case_drop_weights(5)
-    assert high['field_case']>0 and high['military_case']>0 and high['relic_case']>0
-    assert sum(high.values())<2
-    assert case_drop_weights(1)['relic_case']==0
+    # Case-only purchases: no free case printing from monster wins.
+    for threat in range(1,6):
+        assert sum(case_drop_weights(threat).values())==0
 
 
 def test_open_case_consumes_one_real_item_and_mints_exclusive_gun_only_once():

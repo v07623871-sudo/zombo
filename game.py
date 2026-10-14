@@ -2,7 +2,8 @@ import random, math
 from datetime import timedelta, datetime
 from sqlalchemy import select, func
 from models import now, Player, ItemStack, Battle, WorldBoss, BossHit, QuestProgress, Territory
-from armory_content import NEW_ITEM_DESCRIPTIONS, NEW_RECIPES, CASES, CASE_SHOP_PRICES
+from armory_content import NEW_ITEM_DESCRIPTIONS, NEW_RECIPES, CASES
+from premium_chests import EXTRA_SUPPLIES, CHESTS
 
 CLASSES = {
     'medic': {'name':'Врач','icon':'✚','subtitle':'Медик отряда','color':'#6dc7ba','bonus':'Лечение ×2 · регенерация 5% HP/ход','power':1.00,'healing':2.0,'loot':1.0,'crit':0.05,'hp':110},
@@ -391,7 +392,12 @@ CONSUMABLE_EFFECTS = {
 }
 
 ITEMS.update(NEW_ITEM_DESCRIPTIONS)
-ITEMS.update({key:{'name':data['name'],'icon':data['icon'],'type':'case','desc':data['desc']} for key,data in CASES.items()})
+ITEMS.update({key:{'name':data['name'],'icon':data['icon'],'type':'case',
+                   'desc':data['desc']} for key,data in CASES.items()})
+ITEMS.update({key:{'name':data['name'],'icon':data['icon'],'type':'chest',
+                   'desc':data['description']} for key,data in CHESTS.items()})
+ITEMS.update({key:{'name':data['name'],'icon':data['icon'],'type':data['type'],
+                   'desc':data['desc']} for key,data in EXTRA_SUPPLIES.items()})
 
 LOCATIONS = {
     'base': {'name':'Убежище','icon':'⌂','min_level':1,'threat':0,'material':'none','desc':'Место, где безопасно даже после заката'},
@@ -702,7 +708,9 @@ RECIPES.update({
 })
 
 RECIPES.update(NEW_RECIPES)
-SHOP_PRICES.update(CASE_SHOP_PRICES)
+RECIPES.update({key:data['recipe'] for key,data in EXTRA_SUPPLIES.items()})
+SHOP_PRICES.update({key:data['caps'] for key,data in EXTRA_SUPPLIES.items() if 'caps' in data})
+CONSUMABLE_EFFECTS.update({key:data['effect'] for key,data in EXTRA_SUPPLIES.items()})
 
 QUESTS = {
     'kills':{'name':'Чистка периметра','description':'Победить 5 заражённых','target':5,'reward':{'caps':120,'xp':180}},
@@ -1142,12 +1150,15 @@ def combat_round(db,p,b,action,zone='body'):
             pool=['wood','cloth','metal','food','water','medkit','wire']
             key=random.choice(pool);give_item(db,p.id,key);loot.append(key)
             progress(db,p.id,'scavenge')
-        # A case is never opened here; the player must own and open it.
-        from gear import roll_case_drop
-        found_case=roll_case_drop(LOCATIONS.get(p.location,{}).get('threat',1))
-        if found_case:
-            give_item(db,p.id,found_case)
-            loot.append(found_case)
+        # Premium cases/chests cannot be earned through PvE.
+        # Give independent, low-cost supplies instead so loot stays lively.
+        bonus_threat=LOCATIONS.get(p.location,{}).get('threat',1)
+        if random.random()<.035+.012*bonus_threat:
+            pool=['field_dressing','painkillers','energy_bar','isotonic',
+                  'purified_water']+(['energy_cells','military_ration'] if bonus_threat>=3 else [])
+            found_supply=random.choice(pool)
+            give_item(db,p.id,found_supply)
+            loot.append(found_supply)
         # Individually rolled rarity/level gear enters a separate persistent collection.
         from gear import roll_drop,gear_view
         rare_drop=None
