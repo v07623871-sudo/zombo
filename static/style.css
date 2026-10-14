@@ -335,3 +335,16 @@
 .case-prizes{display:grid;gap:9px;margin:12px 0 4px}
 .case-prize{border:1px solid #5d5947;background:linear-gradient(115deg,#26271f,#1b2327);padding:13px 12px;border-radius:10px;font-weight:800;color:#edd8a7}
 .case-prize:first-child{border-color:#b9975c;background:linear-gradient(110deg,#43351f,#1d2529);font-size:14px}
+
+/* 0.36 release polish: mobile-friendly inventory, crafting, searching. */
+.item-filters{margin:10px 0 14px;padding:14px}
+.search-label{display:block;color:#d3c196;font-size:10px;letter-spacing:1.3px;font-weight:800;margin-bottom:7px}
+.list-search{width:100%;box-sizing:border-box;border:1px solid #5c615e;border-radius:11px;color:#f2f2e8;background:#11171c;outline:none;padding:12px 13px;font:500 14px inherit}
+.list-search:focus{border-color:#c9a661;box-shadow:0 0 0 2px #c9a66122}
+.filter-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
+.filter-pill{padding:8px 11px;color:#bdc2ba;background:#232b30;border:1px solid #465158;border-radius:9px;font:700 10px inherit;cursor:pointer;min-height:34px}
+.filter-pill.active{border-color:#c59c4f;background:#413725;color:#f7deb0}
+.material-cost.missing{color:#e69c90;font-weight:700}
+.search-empty{margin-top:12px}
+[hidden]{display:none!important}
+@media(max-width:420px){.item-filters{padding:11px}.filter-pill{padding:7px 9px}}

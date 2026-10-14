@@ -7,8 +7,8 @@ Legacy case items already owned remain usable, without confiscation.
 """
 GEM_CASE_PRICES = {
     'scrap_case':40, 'field_case':55, 'hunter_case':90,
-    'military_case':135, 'assault_case':200, 'relic_case':320,
-    'shadow_case':450,
+    'military_case':135, 'assault_case':200, 'relic_case':275,
+    'shadow_case':360,
 }
 
 CHESTS = {
@@ -24,9 +24,9 @@ CHESTS = {
     },
     'chest_rare':{
         'name':'Редкий сундук','icon':'🎁','price':150,'drops':4,
-        'description':'1 пушка редкая или выше + 3 полезных набора. 70% редкая, 20% эпическая.',
+        'description':'1 гарантированно редкая или эпическая пушка + 3 полезных набора. 75% редкая, 25% эпическая.',
         'cases':{'hunter_case':55,'military_case':45},
-        'rarity_weights':{'uncommon':10,'rare':70,'epic':20},
+        'rarity_weights':{'rare':75,'epic':25},
         'supplies':[
             [('medkit',3),('trauma_kit',1),('combat_meds',2),('adrenaline',1)],
             [('metal',8),('wire',7),('rubber',6),('cloth',9),('wood',11)],
