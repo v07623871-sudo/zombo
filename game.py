@@ -2,6 +2,7 @@ import random, math
 from datetime import timedelta, datetime
 from sqlalchemy import select, func
 from models import now, Player, ItemStack, Battle, WorldBoss, BossHit, QuestProgress, Territory
+from armory_content import NEW_ITEM_DESCRIPTIONS, NEW_RECIPES, CASES
 
 CLASSES = {
     'medic': {'name':'Врач','icon':'✚','subtitle':'Медик отряда','color':'#6dc7ba','bonus':'Лечение ×2 · регенерация 5% HP/ход','power':1.00,'healing':2.0,'loot':1.0,'crit':0.05,'hp':110},
@@ -389,6 +390,9 @@ CONSUMABLE_EFFECTS = {
   }
 }
 
+ITEMS.update(NEW_ITEM_DESCRIPTIONS)
+ITEMS.update({key:{'name':data['name'],'icon':data['icon'],'type':'case','desc':data['desc']} for key,data in CASES.items()})
+
 LOCATIONS = {
     'base': {'name':'Убежище','icon':'⌂','min_level':1,'threat':0,'material':'none','desc':'Место, где безопасно даже после заката'},
     'forest': {'name':'Мёртвый лес','icon':'♣','min_level':1,'threat':1,'material':'wood','desc':'Туман, старые тропы и первые заражённые'},
@@ -696,6 +700,9 @@ RECIPES.update({
     }
   }
 })
+
+RECIPES.update(NEW_RECIPES)
+SHOP_PRICES.update({'field_case':650,'military_case':3000})
 
 QUESTS = {
     'kills':{'name':'Чистка периметра','description':'Победить 5 заражённых','target':5,'reward':{'caps':120,'xp':180}},
@@ -1028,6 +1035,7 @@ def attack_power(db,p):
     return max(1,int((7+p.level*2+p.stats.get('strength',0)*2+w)*cls['power']*(1+talent_bonus(p,'power')+pet_bonus(p,'power'))))
 
 def combat_round(db,p,b,action,zone='body'):
+    from gear import wear_equipped
     if action not in ('attack','medkit','flee','defend','skill','pet'):raise ValueError('Неизвестное действие')
     elite=elite_modifier(b)
     if action=='flee':
@@ -1090,6 +1098,7 @@ def combat_round(db,p,b,action,zone='body'):
             plating = plating_amount * (.45 if zone=='head' else .75 if zone=='legs' else 1.0)
             d=max(1,round(d*(1-plating)))
         b.enemy_hp=max(0,b.enemy_hp-d)
+        wear_equipped(db,p.id,'weapon',1)
         if d and talent_bonus(p,'lifesteal'):
             leech=max(1,int(d*talent_bonus(p,'lifesteal')))
             p.hp=min(max_hp(p),p.hp+leech)
@@ -1133,6 +1142,12 @@ def combat_round(db,p,b,action,zone='body'):
             pool=['wood','cloth','metal','food','water','medkit','wire']
             key=random.choice(pool);give_item(db,p.id,key);loot.append(key)
             progress(db,p.id,'scavenge')
+        # A case is never opened here; the player must own and open it.
+        from gear import roll_case_drop
+        found_case=roll_case_drop(LOCATIONS.get(p.location,{}).get('threat',1))
+        if found_case:
+            give_item(db,p.id,found_case)
+            loot.append(found_case)
         # Individually rolled rarity/level gear enters a separate persistent collection.
         from gear import roll_drop,gear_view
         rare_drop=None
@@ -1165,6 +1180,7 @@ def combat_round(db,p,b,action,zone='body'):
     evaded=random.random()<evade_chance
     received=0 if evaded else max(1,round(raw*(1-min(.70,CLASSES[p.hero_class].get('mitigation',0)+pet_bonus(p,'mitigation')+talent_bonus(p,'mitigation')+talent_bonus(p,'armor')))))
     p.hp=max(0,p.hp-received)
+    if received:wear_equipped(db,p.id,'armor',1)
     drained=0
     if special and not evaded and action!='defend' and enemy['trait'] in ('acid','howl'):
         drained=min(p.stamina,6 if enemy['trait']=='acid' else 4)
