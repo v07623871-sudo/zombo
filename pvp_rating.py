@@ -25,7 +25,8 @@ def league(rating):
 
 def elo_change(winner_rating,loser_rating):
     """Classic Elo K=32; symmetrical delta and 1 point minimum."""
-    expected=1/(1+10**((int(loser_rating)-int(winner_rating))/400))
+    difference=max(-800,min(800,int(loser_rating)-int(winner_rating)))
+    expected=1/(1+10**(difference/400))
     return max(1,round(ELO_K*(1-expected)))
 
 
