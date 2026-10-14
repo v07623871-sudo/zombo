@@ -7,7 +7,7 @@ from sqlalchemy import func,select
 
 from tests.test_game import app
 from game import death_penalty, give_item, item_count
-from models import Player, SessionLocal, MarketLot, now
+from models import Player, SessionLocal, MarketLot, ItemStack, now
 
 
 def auth(pid):
@@ -34,6 +34,16 @@ def supply_player(pid,insured=False):
         give_item(db,pid,'wood',10)
 
 
+def ordinary_total(db,pid):
+    from premium_chests import CHESTS
+    from armory_content import CASES
+    protected=set(CASES)|set(CHESTS)
+    rows=db.scalars(select(ItemStack).where(
+        ItemStack.player_id==pid,ItemStack.equipped.is_(False),
+        ItemStack.item_key.notin_(protected))).all()
+    return sum(stack.quantity for stack in rows)
+
+
 def test_paid_unopened_cases_and_chests_survive_normal_pve_death():
     pid=99400001
     with TestClient(app) as api:
@@ -41,15 +51,16 @@ def test_paid_unopened_cases_and_chests_survive_normal_pve_death():
         supply_player(pid)
         with SessionLocal.begin() as db:
             p=db.get(Player,pid)
+            before=ordinary_total(db,pid)
             lost=death_penalty(db,p)
-            assert lost['items']==8 # 50% of sixteen ordinary supplies
+            assert lost['items']==before//2
             assert lost['caps']==200
             assert lost['xp']==60
         with SessionLocal() as db:
             assert item_count(db,pid,'chest_legendary')==2
             assert item_count(db,pid,'field_case')==3
             assert item_count(db,pid,'shadow_case')==1
-            assert item_count(db,pid,'metal')+item_count(db,pid,'wood')==8
+            assert ordinary_total(db,pid)==before-lost['items']
             assert db.get(Player,pid).caps==800
             assert db.get(Player,pid).xp==140
 
@@ -60,14 +71,15 @@ def test_paid_containers_are_protected_with_insurance_too():
         create_hero(api,pid)
         supply_player(pid,insured=True)
         with SessionLocal.begin() as db:
+            before=ordinary_total(db,pid)
             result=death_penalty(db,db.get(Player,pid))
-            assert result['insured'] and result['items']==1
+            assert result['insured'] and result['items']==int(before*.10)
             assert result['caps']==50 and result['xp']==20
         with SessionLocal() as db:
             assert item_count(db,pid,'chest_legendary')==2
             assert item_count(db,pid,'field_case')==3
             assert item_count(db,pid,'shadow_case')==1
-            assert item_count(db,pid,'metal')+item_count(db,pid,'wood')==15
+            assert ordinary_total(db,pid)==before-result['items']
 
 
 def test_barter_rejects_impossible_unique_gear_trade_but_keeps_valid_supplies():
