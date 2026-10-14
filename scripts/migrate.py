@@ -32,6 +32,7 @@ MIGRATIONS = (
     ('20261012_04_encounter_clues', frozenset({'encounter_clues'})),
     ('20261012_05_resource_ledger', frozenset({'resource_ledger'})),
     ('20261012_06_clan_treasury_ledger', frozenset({'clan_treasury_ledger'})),
+    ('20261014_07_gear_condition', frozenset({'gear_condition'})),
 )
 registry = MetaData()
 schema_migrations = Table('schema_migrations', registry,
