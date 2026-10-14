@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from models import Base, SessionLocal, Player, now
 from game import give_item, take_item, item_count, attack_power, spend_stamina, max_hp, gain_xp, talent_bonus
 from armory_content import raid_case_drop
+from legendary_ammo import spend_legendary_round, ammo_message
 from notifications import queue_notification
 
 RAIDS={
@@ -231,12 +232,13 @@ def install_raids(app, with_player, ready):
             config=RAIDS[r.scenario]
             dealt=0
             if body.action=='attack':
-                dealt=max(1,int(attack_power(db,p)*random.uniform(.85,1.2)*(1+.05*r.stage)))
+                ammo_status=spend_legendary_round(db,p.id)
+                dealt=max(1,int(attack_power(db,p,ammo_status=ammo_status)*random.uniform(.85,1.2)*(1+.05*r.stage)))
                 r.enemy_hp=max(0,r.enemy_hp-dealt)
                 from gear import wear_equipped
                 wear_equipped(db,p.id,'weapon',1)
                 fighter.contribution+=dealt
-                raid_log(r,f'⚔ {p.name}: {dealt} урона. Осталось {r.enemy_hp} HP у босса.')
+                raid_log(r,f'⚔ {p.name}: {dealt} урона. Осталось {r.enemy_hp} HP у босса.'+ammo_message(ammo_status))
             elif body.action=='guard':
                 fighter.contribution+=3
                 raid_log(r,f'🛡 {p.name} удерживает оборону и снижает встречный удар.')
