@@ -139,7 +139,7 @@ NEW_GEAR = {
     "power": 23,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "field_case"
   },
   "ember": {
@@ -149,7 +149,7 @@ NEW_GEAR = {
     "power": 26,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "field_case"
   },
   "thorn": {
@@ -159,7 +159,7 @@ NEW_GEAR = {
     "power": 28,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "field_case"
   },
   "hunter_zero": {
@@ -169,7 +169,7 @@ NEW_GEAR = {
     "power": 30,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "field_case"
   },
   "aegis": {
@@ -179,7 +179,7 @@ NEW_GEAR = {
     "power": 31,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "military_case"
   },
   "thunder": {
@@ -189,7 +189,7 @@ NEW_GEAR = {
     "power": 34,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "military_case"
   },
   "widow": {
@@ -199,7 +199,7 @@ NEW_GEAR = {
     "power": 36,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "military_case"
   },
   "phantom": {
@@ -209,7 +209,7 @@ NEW_GEAR = {
     "power": 38,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "military_case"
   },
   "eclipse": {
@@ -219,7 +219,7 @@ NEW_GEAR = {
     "power": 39,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "relic_case"
   },
   "black_sun": {
@@ -229,7 +229,7 @@ NEW_GEAR = {
     "power": 41,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "relic_case"
   },
   "leviathan": {
@@ -239,7 +239,7 @@ NEW_GEAR = {
     "power": 43,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "relic_case"
   },
   "last_word": {
@@ -249,7 +249,7 @@ NEW_GEAR = {
     "power": 44,
     "defense": 0,
     "material": "metal",
-    "exclusive": true,
+    "exclusive": True,
     "case": "relic_case"
   }
 }
