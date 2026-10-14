@@ -1,5 +1,6 @@
 """Authenticated admin API. Every mutation is audited in the same DB transaction."""
 from uuid import UUID
+from typing import Literal
 from collections import defaultdict
 from datetime import timedelta
 from io import StringIO
@@ -43,8 +44,8 @@ class StatusChange(BaseModel):
 
 
 class GrantChange(BaseModel):
-    kind: str
-    key: str
+    kind: Literal['currency','item','gear','pet','premium']
+    key: str = Field(min_length=1, max_length=55)
     amount: int = Field(default=1, ge=1, le=1000000)
     rarity: str = 'common'
     level: int = Field(default=0, ge=0, le=10)
@@ -53,7 +54,7 @@ class GrantChange(BaseModel):
 
 
 class ResourceChange(BaseModel):
-    field: str
+    field: Literal['caps','xp','material']
     item_key: str | None = Field(default=None, max_length=55)
     amount: int = Field(ge=-100000, le=100000)
     reason: str = Field(min_length=5, max_length=300)
