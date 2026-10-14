@@ -43,8 +43,17 @@ class StatusChange(BaseModel):
 
 
 class GrantChange(BaseModel):
-    kind: str = Field(pattern=r'^(currency|item|gear|pet|premium)
-    field: str = Field(pattern=r'^(caps|xp|material)$')
+    kind: str
+    key: str
+    amount: int = Field(default=1, ge=1, le=1000000)
+    rarity: str = 'common'
+    level: int = Field(default=0, ge=0, le=10)
+    reason: str = Field(min_length=5, max_length=300)
+    request_id: UUID
+
+
+class ResourceChange(BaseModel):
+    field: str
     item_key: str | None = Field(default=None, max_length=55)
     amount: int = Field(ge=-100000, le=100000)
     reason: str = Field(min_length=5, max_length=300)
