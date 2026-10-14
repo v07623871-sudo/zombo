@@ -130,7 +130,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.39.0'
+APP_VERSION='0.40.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
@@ -756,6 +756,12 @@ def market_create(body:LotRequest,request:Request,db:Session=Depends(db_session)
         if body.offer not in ITEMS or body.want not in ITEMS or body.offer==body.want:raise ValueError('Некорректные предметы')
         if ITEMS[body.offer]['type'] in ('case','chest') or ITEMS[body.want]['type'] in ('case','chest'):
             raise ValueError('Премиум-кейсы и сундуки нельзя обменивать на бартерном рынке')
+        # Unique GearItem has its own safe escrow marketplace. There are no
+        # ItemStack rows for these keys, so asking for one created dead lots.
+        legacy_stack_gear={'knife','vest','pistol','rifle'}
+        if any(key in BASE_GEAR and key not in legacy_stack_gear
+               for key in (body.offer,body.want)):
+            raise ValueError('Уникальное снаряжение продаётся только на рынке снаряжения')
         if db.scalar(select(func.count()).select_from(MarketLot).where(MarketLot.seller_id==p.id,MarketLot.active==True))>=5:raise ValueError('Максимум 5 активных лотов')
         take_item(db,p.id,body.offer,body.qty)
         lot=MarketLot(seller_id=p.id,offered_key=body.offer,offered_qty=body.qty,wanted_key=body.want,wanted_qty=body.want_qty)
@@ -776,8 +782,13 @@ def market_buy(body:IdBody,request:Request,db:Session=Depends(db_session)):
         lot=db.scalar(select(MarketLot).where(MarketLot.id==body.id).with_for_update())
         if not lot or not lot.active:raise ValueError('Лот недоступен')
         if lot.seller_id==p.id:raise ValueError('Нельзя покупать свой лот')
+        if lot.offered_key not in ITEMS or lot.wanted_key not in ITEMS:
+            raise ValueError('Лот с неизвестным предметом недоступен. Продавец может отменить его.')
         if ITEMS[lot.offered_key]['type'] in ('case','chest') or ITEMS[lot.wanted_key]['type'] in ('case','chest'):
             raise ValueError('Этот премиум-лот больше недоступен. Продавец может отменить его.')
+        if any(key in BASE_GEAR and key not in {'knife','vest','pistol','rifle'}
+               for key in (lot.offered_key,lot.wanted_key)):
+            raise ValueError('Уникальное оружие обменивается на рынке снаряжения')
         take_item(db,p.id,lot.wanted_key,lot.wanted_qty)
         give_item(db,lot.seller_id,lot.wanted_key,lot.wanted_qty)
         give_item(db,p.id,lot.offered_key,lot.offered_qty)
