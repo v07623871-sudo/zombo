@@ -15,9 +15,9 @@ def test_clumby_entrypoint_requires_no_server_or_database():
     assert "deleteWebhook" in script
     assert "pre_checkout_query" in script
     assert '"message"' in script
-    assert "'drop_pending_updates': False" in script
-    assert "BACKEND + '/telegram/webhook'" in script
-    assert "'X-Telegram-Bot-Api-Secret-Token': SECRET" in script
+    assert '"drop_pending_updates": False' in script
+    assert 'BACKEND + "/telegram/webhook"' in script
+    assert '"X-Telegram-Bot-Api-Secret-Token": SECRET' in script
     assert "offset = uid + 1" not in script  # script uses update_id variable
     assert "offset = update_id + 1" in script
     assert "def run()" in script
