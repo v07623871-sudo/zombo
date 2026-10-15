@@ -65,7 +65,14 @@ async def lifespan(app: FastAPI):
         for key in TERRITORIES:
             if not db.get(Territory,key): db.add(Territory(id=key))
             if not db.get(TerritoryTax,key): db.add(TerritoryTax(territory_id=key, last_collection=now()))
-    if BOT_TOKEN and PUBLIC_URL and SECRET:
+    # Clumby receives updates via getUpdates and relays them here. Do not
+    # reinstall Railway's webhook on app restarts in that transport mode.
+    transport=os.getenv('TELEGRAM_UPDATES_TRANSPORT','webhook').strip().lower()
+    if transport not in ('webhook','external_polling'):
+        raise RuntimeError('TELEGRAM_UPDATES_TRANSPORT must be webhook or external_polling')
+    if transport=='external_polling':
+        logger.info('Telegram updates handled externally by Clumby polling adapter')
+    if transport=='webhook' and BOT_TOKEN and PUBLIC_URL and SECRET:
         result=await telegram_api('setWebhook',{'url':f'{PUBLIC_URL}/telegram/webhook','secret_token':SECRET,'allowed_updates':['message','pre_checkout_query']})
         logger.info('Webhook configured: %s',bool(result.get('ok')))
         await telegram_api('setChatMenuButton',{'menu_button':{'type':'web_app','text':'Открыть ZOMBO','web_app':{'url':PUBLIC_URL}}})
@@ -130,7 +137,7 @@ def _war_clock_tick():
         prune_update_receipts(session)
         cleanup_notifications(session)
 
-APP_VERSION='0.41.0'
+APP_VERSION='0.42.0'
 app=FastAPI(title='ZOMBO · After the Fall',version=APP_VERSION,lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__),'static')),name='static')
 
